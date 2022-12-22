@@ -1,0 +1,425 @@
+---
+title: "Predicting Gene Abundance Using PICRUSt2 and Statistical Analysis with ALDEx2"
+author: "David Ramotowski"
+date: "12/22/2022"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+Part 5: Predictions of Functional Output Using Picrust2 and ALDEx2
+  Picrust2 Installation (can move the picrust2-2.5.0 directory to different 
+    folders if needed in the future):
+    
+    You can also run Picrust2 on the Argon HPC Cluster using my example script
+    on the Mattes Lab drive
+    
+```{bash}
+wget https://github.com/picrust/picrust2/archive/v2.5.0.tar.gz
+tar xvzf  v2.5.0.tar.gz
+cd picrust2-2.5.0/
+```
+
+```{bash}
+cd picrust2-2.5.0/
+conda env create -f  picrust2-env.yaml
+conda activate picrust2
+pip install --editable .
+```
+
+  Export data into biom format
+```{r}
+otu<-t(as(otu_table(ps),"matrix"))
+otu_biom<-make_biom(data=otu)
+write_biom(otu_biom,"study_seqs.biom")
+```
+  
+  Export ASV sequence table
+```{r}
+ps %>%
+    refseq() %>%
+    Biostrings::writeXStringSet("study_seqs.fna", append=FALSE,
+                                compress=FALSE, compression_level=NA, 
+                                format="fasta")
+```
+
+  Run Picrust2:  Click on the terminal tab below and input the following lines 
+  to activate picrust 2 and run (remember to change the file path to match 
+                                your own!)
+    
+    conda activate picrust2
+    
+    cd /home/djramotowski/DJR_Mattes_Lab/NBH_AVL_NGS_analysis
+
+    picrust2_pipeline.py -s study_seqs.fna -i study_seqs.biom -o picrust2_out_pipeline -p 1
+   
+  Set the Picrust2 output folder   
+```{r}
+picrust2 <- "picrust2_out_pipeline"
+list.files(picrust2, recursive = TRUE)
+```
+     
+  Make unstratified Picrust2 output file paths
+```{r}
+p2_EC = paste0(picrust2, "/EC_metagenome_out/pred_metagenome_unstrat.tsv.gz")
+p2_KO = paste0(picrust2, "/KO_metagenome_out/pred_metagenome_unstrat.tsv.gz")
+p2_PW = paste0(picrust2, "/pathways_out/path_abun_unstrat.tsv.gz")
+```
+
+  Make stratified Picrust2 output file paths
+```{r}
+p2_EC_strat = paste0(picrust2, "/EC_metagenome_out/pred_metagenome_strat.tsv.gz")
+p2_KO_strat = paste0(picrust2, "/KO_metagenome_out/pred_metagenome_strat.tsv.gz")
+p2_PW_strat = paste0(picrust2, "/pathways_out/path_abun_strat.tsv.gz")
+```
+
+  Load stratified Picrust2 output files and rename function column (I also renamed my samples to     original sample IDs)
+```{r}
+p2ECstrat <- read_tsv(p2_EC_strat) %>% as.data.frame() %>% dplyr::rename("EC" = "function", "C3_2" = 
+         "Altavista-VA-1", "E2_4" = "Altavista-VA-2", "E2_2" = "Altavista-VA-3",
+         "F4_2" = "Altavista-VA-4", "D2_3" = "Altavista-VA-5", "WS306B" = "New-Bedford-MA-1", 
+         "S-928" = "New-Bedford-MA-2", "INT222" = "New-Bedford-MA-3", "INT218" = "New-Bedford-MA-4", 
+         "WS229" = "New-Bedford-MA-5")
+p2KOstrat <- read_tsv(p2_KO_strat) %>% as.data.frame() %>% dplyr::rename("KO" = "function", "C3_2" = 
+         "Altavista-VA-1", "E2_4" = "Altavista-VA-2", "E2_2" = "Altavista-VA-3",
+         "F4_2" = "Altavista-VA-4", "D2_3" = "Altavista-VA-5", "WS306B" = "New-Bedford-MA-1", 
+         "S-928" = "New-Bedford-MA-2", "INT222" = "New-Bedford-MA-3", "INT218" = "New-Bedford-MA-4", 
+         "WS229" = "New-Bedford-MA-5")
+p2PWstrat <- read_tsv(p2_PW_strat) %>% as.data.frame() %>% dplyr::rename("C3_2" = 
+         "Altavista-VA-1", "E2_4" = "Altavista-VA-2", "E2_2" = "Altavista-VA-3",
+         "F4_2" = "Altavista-VA-4", "D2_3" = "Altavista-VA-5", "WS306B" = "New-Bedford-MA-1", 
+         "S-928" = "New-Bedford-MA-2", "INT222" = "New-Bedford-MA-3", "INT218" = "New-Bedford-MA-4", 
+         "WS229" = "New-Bedford-MA-5")
+```
+
+  Select bphA from EC data frame (https://enzyme.expasy.org/EC/1.14.12.18)
+```{r}
+p2bphA <- filter(p2ECstrat, EC == "EC:1.14.12.18")
+```
+ 
+  Pivot to long form, link with metadata table, and graph
+```{r}
+p2bphA_total <- p2bphA %>% dplyr::select(c("EC", "C3_2", "E2_4", "E2_2", "F4_2", "D2_3", "WS306B", "S-928", "INT222", "INT218", "WS229")) %>% pivot_longer(!EC, names_to = "Sample_ID", values_to = "counts") %>% inner_join(., samdf, by = c("Sample_ID"))
+
+chart_title <- expression(paste("PICRUSt2 Predicted ", italic("bphA"), " Abundance"))
+
+ifelse(!dir.exists("picrust2_plots"), dir.create("picrust2_plots"), 
+       FALSE)
+
+p2bphA_bar <- ggplot(data = p2bphA_total, aes(x = Sample_ID, y = counts, fill = Location)) +
+  geom_col() + facet_wrap("Location", scales = "free_x") + theme(legend.position = "none") +
+  theme(axis.text.x = element_text(angle = 90)) + ylab("Abundance") + ggtitle(chart_title) +
+  scale_fill_manual(values = c(NBH = "blue", AVL = "red")) + theme_bw()
+ 
+ggsave("picrust2_plots/p2bphA_bar.png", width = 8, height = 8, dpi = 300)
+```
+
+  Load metadata for calculating abundance per g sediment
+```{r}
+p2meta <- data.frame(read.csv('picrust2_meta.csv', header = TRUE, sep = ","))
+  head(p2meta)
+```
+
+  Join metadata with bphA data, calculate predicted counts per g sediment, graph
+```{r}
+p2bphA_per_g <- p2bphA_total %>% inner_join(., p2meta, by = c("Sample_ID", "Location")) %>%
+  dplyr::mutate(counts_per_uL_DNA = counts / Volume_uL) %>% 
+  dplyr::mutate(counts_per_g_sed = (counts_per_uL_DNA * original_volume_uL) / sediment_g)
+
+chart_title <- expression(paste("PICRUSt2 Predicted ", italic("bphA"), " Abundance per g Sediment"))
+y_axis_title <- expression(Counts ~ g^-1 ~ Sediment)
+
+ifelse(!dir.exists("picrust2_plots"), dir.create("picrust2_plots"), 
+       FALSE)
+
+p2bphA_bar_per_g <- ggplot(data = p2bphA_per_g, aes(x = Sample_ID, y = counts_per_g_sed, fill = Location)) +
+  geom_col() + facet_wrap("Location", scales = "free_x") + theme(legend.position = "none") +
+  theme(axis.text.x = element_text(angle = 90)) + ylab(y_axis_title) + ggtitle(chart_title) +
+  scale_fill_manual(values = c(NBH = "blue", AVL = "red")) + xlab("Sample") + theme_bw()
+ 
+ggsave("picrust2_plots/p2bphA_per_g_bar.png", width = 8, height = 8, dpi = 300)
+
+p2bphA_bar_per_g_loc <- ggplot(data = p2bphA_per_g, aes(x = Location, y = counts_per_g_sed, fill = Location)) +
+  geom_col(width = 0.5) + theme(legend.position = "none") +
+  theme(axis.text.x = element_text(angle = 90)) + ylab(y_axis_title) + ggtitle(chart_title) +
+  scale_fill_manual(values = c(NBH = "blue", AVL = "red")) + xlab("Sample") + theme_bw()
+
+ggsave("picrust2_plots/p2bphA_per_g_loc_bar.png", width = 6, height = 8, dpi = 300)
+```
+  Convert EC data to relative abundance
+```{r}
+EC_rabun <- p2ECstrat %>%
+  bind_rows(dplyr::summarise(.,
+                      across(where(is.numeric), sum),
+                      across(where(is.character), ~"Total"))) %>% 
+  dplyr::select(c("EC", "C3_2", "E2_4", "E2_2", "F4_2", "D2_3", 
+                  "WS306B", "S-928", "INT222", "INT218", "WS229")) %>% 
+  filter(EC == "Total") %>%
+  pivot_longer(!EC, names_to = "Sample_ID", values_to = "counts") %>% 
+  inner_join(., samdf, by = c("Sample_ID"))
+
+EC_bphA_rabun <- EC_rabun %>% inner_join(., p2bphA_total, by = c("Sample_ID", "Location")) %>% 
+  dplyr::mutate(relative_abundance = counts.y / counts.x) %>% 
+  dplyr::select(-c("counts.y", "counts.x", "EC.x", "EC.y"))
+
+chart_title <- expression(paste("PICRUSt2 Predicted ", italic("bphA"), " Relative Abundance"))
+
+ifelse(!dir.exists("picrust2_plots"), dir.create("picrust2_plots"), 
+       FALSE)
+
+p2bphA_bar_rel2 <- ggplot(data = EC_bphA_rabun, aes(x = Sample_ID, y = relative_abundance, fill = Location)) +
+  geom_col() + theme(legend.position = "none") +
+  theme(axis.text.x = element_text(angle = 90)) + ylab("Relative Abundance") + ggtitle(chart_title) +
+  scale_fill_manual(values = c(NBH = "blue", AVL = "red")) + xlab("Sample") + theme_bw()
+
+ggsave("picrust2_plots/p2bphA_rel.png", width = 8, height = 8, dpi = 300)
+
+p2bphA_bar_rel_loc <- ggplot(data = EC_bphA_rabun, aes(x = Location, y = relative_abundance, fill = Location)) +
+  geom_col(width = 0.5) + theme(legend.position = "none") +
+  theme(axis.text.x = element_text(angle = 90)) + ylab("Relative Abundance") + ggtitle(chart_title) +
+  scale_fill_manual(values = c(NBH = "blue", AVL = "red")) + xlab("Sample") + theme_bw()
+
+ggsave("picrust2_plots/p2bphA_rel_loc_bar.png", width = 6, height = 8, dpi = 300)
+```
+
+  Load qPCR relative abundance data (bphA vs. 16S for comparison)
+```{r}
+qPCRmeta <- data.frame(read.csv('qPCR_meta.csv', header = TRUE, sep = ",")) %>% 
+  dplyr::mutate(Analysis = "qPCR")
+  head(qPCRmeta)
+```
+
+  Join qPCR data with PICRUSt2 relative abundance data, graph
+```{r}
+p2vsqPCR <- EC_bphA_rabun %>% dplyr::mutate(Analysis = "PICRUSt2") %>% full_join(., qPCRmeta, by = c("Sample_ID", "Location", "Analysis", "relative_abundance"))
+
+ifelse(!dir.exists("picrust2_plots"), dir.create("picrust2_plots"), 
+       FALSE)
+
+chart_title <- expression(paste("PICRUSt2 Predicted vs qPCR Measured ", italic("bphA"), " Relative Abundance"))
+
+p2vsqPCRbphA_bar_rel <- ggplot(data = p2vsqPCR, aes(x = Sample_ID, y = relative_abundance, fill = Location)) +
+  geom_col() + theme(legend.position = "none") + facet_wrap("Analysis", scales = "free") + ylab("Relative Abundance") + ggtitle(chart_title) + scale_fill_manual(values = c(NBH = "blue", AVL = "red")) + xlab("Sample") + theme_bw() + theme(axis.text.x = element_text(angle = 90))
+
+ggsave("picrust2_plots/p2vsqPCRbphA_rel.png", width = 8, height = 8, dpi = 300)
+
+p2vsqPCRbphA_bar_rel_loc <- ggplot(data = p2vsqPCR, aes(x = Location, y = relative_abundance, fill = Location)) +
+  geom_col(width = 0.5) + facet_wrap("Analysis", scales = "free") + ylab("Relative Abundance") + ggtitle(chart_title) + scale_fill_manual(values = c(NBH = "blue", AVL = "red")) + xlab("Sample Location") + theme_bw() + theme(axis.text.x = element_text(angle = 90)) + theme(legend.position = "none")
+
+ggsave("picrust2_plots/p2vsqPCRbphA_rel_loc.png", width = 8, height = 8, dpi = 300)
+
+#qPCR log scale plot
+chart_title2 <- expression(paste("qPCR Measured ", italic("bphA"), " Relative Abundance"))
+
+qPCRbphA_bar_per_g <- ggplot(data = qPCRmeta, aes(x = Sample_ID, y = relative_abundance, fill = Location)) + scale_y_log10() +
+  geom_col(width = 0.5) + ylab(y_axis_title) + ggtitle(chart_title2) +
+  scale_fill_manual(values = c(NBH = "blue", AVL = "red")) + xlab("Sample") +  scale_y_log10() + theme_bw() +
+  theme(legend.position = "none") +
+  theme(axis.text.x = element_text(angle = 90))
+
+ggsave("picrust2_plots/qPCRbphA_per_g_bar.png", width = 6, height = 8, dpi = 300)
+```
+  
+
+ALDEx2 Analysis:
+
+  Set Picrust2 mapfile folder (located in the picrust2 installation folder)
+```{r}
+mapfile = "picrust2-2.5.0/picrust2/default_files/description_mapfiles"
+list.files(mapfile, recursive = TRUE)
+```
+
+  Make Picrust2 map file paths
+```{r}
+mapfile_EC = paste0(mapfile, "/ec_level4_info.tsv.gz")
+mapfile_KO = paste0(mapfile, "/ko_info.tsv.gz")
+mapfile_PW = paste0(mapfile, "/metacyc_pathways_info.txt.gz")
+```
+  
+  Load map files
+```{r}
+mapEC = as.data.frame(fread(mapfile_EC, header = FALSE))
+colnames(mapEC) = c("function","description")
+mapKO = as.data.frame(fread(mapfile_KO, header = FALSE, sep = "\t"))
+colnames(mapKO) = c("function","description")
+mapPW = as.data.frame(fread(mapfile_PW, header = FALSE))
+colnames(mapPW) = c("pathway","description")
+```
+
+  Load Picrust2 output files
+```{r}
+p2EC = as.data.frame(fread(p2_EC))
+rownames(p2EC) = p2EC$"function"
+p2EC = as.matrix(p2EC[,-1])
+p2EC = round(p2EC)
+
+p2KO = as.data.frame(fread(p2_KO))
+rownames(p2KO) = p2KO$"function"
+p2KO = as.matrix(p2KO[,-1])
+p2KO = round(p2KO)
+
+p2PW = as.data.frame(fread(p2_PW))
+rownames(p2PW) = p2PW$"pathway"
+p2PW = as.matrix(p2PW[,-1])
+p2PW = round(p2PW)
+```
+
+  Perform statistical analysis (using Welch's t-test)
+  -If the test is ‘glm’, then effect should be FALSE. The ‘glm’ option evaluates
+    the data as a one-way ANOVA using the glm and Kruskal-Wallace test
+  -If the test is ‘t’, then effect should be set to TRUE. 
+  The ‘t’ option evaluates the data as a two-factor experiment using both the 
+    Welch’s t and the Wilcoxon rank tests
+  -All tests include a Benjamini-Hochberg correction of the raw P values
+  -If you want to test multiple factors, you will need to re-run the code and
+    specify the group after the $ sign and rename the output.
+  
+```{r}
+# EC
+set.seed(12345)
+system.time({
+        aldex2_EC = aldex(p2EC, sample_data(ps1)$Location, mc.samples = 500, test = "t", 
+               effect = TRUE, denom = "iqlr", verbose = TRUE)
+})
+```
+
+```{r}
+# KO
+set.seed(12345)
+system.time({
+        aldex2_KO = aldex(p2KO, sample_data(ps1)$Location, mc.samples = 500, test = "t", 
+               effect = TRUE, denom = "iqlr", verbose = TRUE)
+})
+```
+
+```{r}
+# Pathway
+set.seed(12345)
+system.time({
+        aldex2_PW = aldex(p2PW, sample_data(ps1)$Location, mc.samples = 500, test = "t", 
+               effect = TRUE, denom = "iqlr", verbose = TRUE)
+})
+```
+
+  See an ALDEx2 Output
+```{r}
+head(aldex2_KO, 10)
+```
+
+  Check estimated effect size
+  -AlDEx2 authors recommend using an effect size of 1 as a significance cutoff
+```{r}
+ifelse(!dir.exists("ALDEx2_statistical_analysis"), 
+       dir.create("ALDEx2_statistical_analysis"), FALSE)
+
+png("ALDEx2_statistical_analysis/ALDEx2_picrust2_effect.png", width = 6, height = 6, units = "in", res = 300)
+par(mfrow = c(2,2))
+hist(aldex2_EC$effect, breaks = 20, xlab = "effect size", col = "yellow", main = "EC")
+hist(aldex2_KO$effect, breaks = 20, xlab = "effect size", col = "yellow", main = "KO")
+hist(aldex2_PW$effect, breaks = 20, xlab = "effect size", col = "yellow", main = "Pathway")
+invisible(dev.off())
+```
+  
+  Plotting of Outputs
+  -create MW (fold-change to variance/effect) and MA (Bland-Altman) plots
+```{r}
+ifelse(!dir.exists("ALDEx2_statistical_analysis"), 
+       dir.create("ALDEx2_statistical_analysis"), FALSE)
+
+png("ALDEx2_statistical_analysis/ALDEx2_picrust2_MW_MA.png", width = 6, height = 8, units = "in", res = 300)
+par(mfrow = c(3,2))
+aldex.plot(aldex2_EC, type = "MW", test = "wilcox", all.cex = 0.4, rare.cex = 0.4, 
+       called.cex = 0.6, cutoff = 0.05, xlab = "Dispersion", ylab = "Difference")
+title(main = "(EC) MW Plot")
+
+aldex.plot(aldex2_EC, type = "MA", test = "wilcox", all.cex = 0.4, rare.cex = 0.4, 
+       called.cex = 0.6, cutoff = 0.05, xlab = "Log-ratio abundance", ylab = "Difference")
+title(main = "(EC) MA Plot")
+
+aldex.plot(aldex2_KO, type = "MW", test = "wilcox", all.cex = 0.4, rare.cex = 0.4, 
+       called.cex = 0.6, cutoff = 0.05, xlab = "Dispersion", ylab = "Difference")
+title(main = "(KO) MW Plot")
+
+aldex.plot(aldex2_KO, type = "MA", test = "wilcox", all.cex = 0.4, rare.cex = 0.4, 
+       called.cex = 0.6, cutoff = 0.05, xlab = "Relative abundance", ylab = "Difference")
+title(main = "(KO) MA Plot")
+
+aldex.plot(aldex2_PW, type = "MW", test = "wilcox", all.cex = 0.4, rare.cex = 0.4, 
+       called.cex = 0.6, cutoff = 0.05, xlab = "Dispersion", ylab = "Difference")
+title(main = "(PW) MW Plot")
+
+aldex.plot(aldex2_PW, type = "MA", test = "wilcox", all.cex = 0.4, rare.cex = 0.4, 
+       called.cex = 0.6, cutoff = 0.05, xlab = "Relative abundance", ylab = "Difference")
+title(main = "(PW) MA Plot")
+invisible(dev.off())
+```
+
+  Relationship between effect, difference, and P values
+```{r}
+ifelse(!dir.exists("ALDEx2_statistical_analysis"), 
+       dir.create("ALDEx2_statistical_analysis"), FALSE)
+
+png("ALDEx2_statistical_analysis/ALDEx2_picrust2_P_adjP.png", width = 6, height = 8, units = "in", res = 300)
+par(mfrow = c(3,2))
+plot(aldex2_EC$effect, aldex2_EC$we.ep, log = "y", cex = 0.4, col = "blue", pch = 19, 
+     xlab = "Effect size", ylab = "P value", main = "(EC) Effect size plot")
+points(aldex2_EC$effect, aldex2_EC$we.eBH, cex = 0.5, col = "red", pch = 19)
+abline(h = 0.05, lty = 2, col = "grey")
+legend("bottom", legend = c("P value", "BH-adjusted"), pch = 19, col = c("blue", "red"))
+
+plot(aldex2_EC$diff.btw, aldex2_EC$we.ep, log = "y", cex = 0.4, col = "blue", pch = 19, 
+     xlab = "Difference", ylab = "P value", main = "(EC) Volcano plot")
+points(aldex2_EC$diff.btw, aldex2_EC$we.eBH, cex = 0.5, col = "red", pch = 19)
+abline(h = 0.05, lty = 2, col = "grey")
+
+plot(aldex2_KO$effect, aldex2_KO$we.ep, log = "y", cex = 0.4, col = "blue", pch = 19, 
+     xlab = "Effect size", ylab = "P value", main = "(KO) Effect size plot")
+points(aldex2_KO$effect, aldex2_KO$we.eBH, cex = 0.5, col = "red", pch = 19)
+abline(h = 0.05, lty = 2, col = "grey")
+legend("bottom", legend = c("P value", "BH-adjusted"), pch = 19, col = c("blue", "red"))
+
+plot(aldex2_KO$diff.btw, aldex2_KO$we.ep, log = "y", cex = 0.4, col = "blue", pch = 19, 
+     xlab = "Difference", ylab = "P value", main = "(KO) Volcano plot")
+points(aldex2_KO$diff.btw, aldex2_KO$we.eBH, cex = 0.5, col = "red", pch = 19)
+abline(h = 0.05, lty = 2, col = "grey")
+
+plot(aldex2_PW$effect, aldex2_PW$we.ep, log = "y", cex = 0.4, col = "blue", pch = 19, 
+     xlab = "Effect size", ylab = "P value", main = "(PW) Effect size plot")
+points(aldex2_PW$effect, aldex2_PW$we.eBH, cex = 0.5, col = "red", pch = 19)
+abline(h = 0.05, lty = 2, col = "grey")
+legend("bottom", legend = c("P value", "BH-adjusted"), pch = 19, col = c("blue", "red"))
+
+plot(aldex2_PW$diff.btw, aldex2_PW$we.ep, log = "y", cex = 0.4, col = "blue", pch = 19, 
+     xlab = "Difference", ylab = "P value", main = "(PW) Volcano plot")
+points(aldex2_PW$diff.btw, aldex2_PW$we.eBH, cex = 0.5, col = "red", pch = 19)
+abline(h = 0.05, lty = 2, col = "grey")
+invisible(dev.off())
+```
+
+  Create output files
+  -Merge with map file data
+```{r}
+df_EC = aldex2_EC %>% tibble::rownames_to_column(var = "EC") %>% 
+    inner_join(mapEC, by = c("EC" = "function")) %>% arrange(EC)
+
+df_KO = aldex2_KO %>% tibble::rownames_to_column(var = "KO") %>% 
+    inner_join(mapKO, by = c("KO" = "function")) %>% arrange(KO)
+
+df_PW = aldex2_PW %>% tibble::rownames_to_column(var = "Pathway") %>% 
+    inner_join(mapPW, by = c("Pathway" = "pathway")) %>% arrange(Pathway)
+```
+
+  output to files
+```{r}
+ifelse(!dir.exists("ALDEx2_statistical_analysis"), 
+       dir.create("ALDEx2_statistical_analysis"), FALSE)
+
+write.table(df_EC, file = "ALDEx2_statistical_analysis/ALDEx2_picrust2_EC_results_1.tsv", sep = "\t", quote = F, 
+        row.names = F, col.names = T)
+write.table(df_KO, file = "ALDEx2_statistical_analysis/ALDEx2_picrust2_KO_results_1.tsv", sep = "\t", quote = F, 
+        row.names = F, col.names = T)
+write.table(df_PW, file = "ALDEx2_statistical_analysis/ALDEx2_picrust2_Pathway_results_1.tsv", sep = "\t", quote = F, 
+        row.names = F, col.names = T)
+```

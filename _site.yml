@@ -1,0 +1,13 @@
+name: "16S rRNA Sequencing Analysis Workflow"
+navbar:
+  title: "Main Steps"
+  left:
+    - text: "DADA2 Pipeline"
+      href: A_Setup_and_Running_DADA2_Pipeline.html
+    - text: "Phyloseq"
+      href: B_Analyzing_DADA2_Output_with_Phyloseq.html
+    - text: "PICRUSt2 and ALDEx2"
+      href: C_Predicting_Functional_Gene_Abundance_with_PICRUSt2_and_ALDEx2.html
+output:
+  html_document:
+    theme: yeti

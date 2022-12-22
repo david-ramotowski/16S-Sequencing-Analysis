@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+<meta name="author" content="David Ramotowski" />
+
+<meta name="date" content="2022-12-22" />
+
+<title>Predicting Gene Abundance Using PICRUSt2 and Statistical Analysis with ALDEx2</title>
+
+<script src="site_libs/header-attrs-2.19/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/yeti.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/default.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark the anchor link active (and if it's in a dropdown, also mark that active)
+  var dropdown = menuAnchor.closest('li.dropdown');
+  if (window.bootstrap) { // Bootstrap 4+
+    menuAnchor.addClass('active');
+    dropdown.find('> .dropdown-toggle').addClass('active');
+  } else { // Bootstrap 3
+    menuAnchor.parent().addClass('active');
+    dropdown.addClass('active');
+  }
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-bs-toggle="collapse" data-target="#navbar" data-bs-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">Main Steps</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="A_Setup_and_Running_DADA2_Pipeline.html">DADA2 Pipeline</a>
+</li>
+<li>
+  <a href="B_Analyzing_DADA2_Output_with_Phyloseq.html">Phyloseq</a>
+</li>
+<li>
+  <a href="C_Predicting_Functional_Gene_Abundance_with_PICRUSt2_and_ALDEx2.html">PICRUSt2 and ALDEx2</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="header">
+
+
+
+<h1 class="title toc-ignore">Predicting Gene Abundance Using PICRUSt2 and Statistical Analysis with ALDEx2</h1>
+<h4 class="author">David Ramotowski</h4>
+<h4 class="date">12/22/2022</h4>
+
+</div>
+
+
+<p>Part 5: Predictions of Functional Output Using Picrust2 and ALDEx2 Picrust2 Installation (can move the picrust2-2.5.0 directory to different folders if needed in the future):</p>
+<pre><code>You can also run Picrust2 on the Argon HPC Cluster using my example script
+on the Mattes Lab drive</code></pre>
+<pre class="bash"><code>wget https://github.com/picrust/picrust2/archive/v2.5.0.tar.gz
+tar xvzf  v2.5.0.tar.gz
+cd picrust2-2.5.0/</code></pre>
+<pre class="bash"><code>cd picrust2-2.5.0/
+conda env create -f  picrust2-env.yaml
+conda activate picrust2
+pip install --editable .</code></pre>
+<p>Export data into biom format</p>
+<pre class="r"><code>otu&lt;-t(as(otu_table(ps),&quot;matrix&quot;))
+otu_biom&lt;-make_biom(data=otu)
+write_biom(otu_biom,&quot;study_seqs.biom&quot;)</code></pre>
+<p>Export ASV sequence table</p>
+<pre class="r"><code>ps %&gt;%
+    refseq() %&gt;%
+    Biostrings::writeXStringSet(&quot;study_seqs.fna&quot;, append=FALSE,
+                                compress=FALSE, compression_level=NA, 
+                                format=&quot;fasta&quot;)</code></pre>
+<p>Run Picrust2: Click on the terminal tab below and input the following lines to activate picrust 2 and run (remember to change the file path to match your own!)</p>
+<pre><code>conda activate picrust2
+
+cd /home/djramotowski/DJR_Mattes_Lab/NBH_AVL_NGS_analysis
+
+picrust2_pipeline.py -s study_seqs.fna -i study_seqs.biom -o picrust2_out_pipeline -p 1</code></pre>
+<p>Set the Picrust2 output folder</p>
+<pre class="r"><code>picrust2 &lt;- &quot;picrust2_out_pipeline&quot;
+list.files(picrust2, recursive = TRUE)</code></pre>
+<p>Make unstratified Picrust2 output file paths</p>
+<pre class="r"><code>p2_EC = paste0(picrust2, &quot;/EC_metagenome_out/pred_metagenome_unstrat.tsv.gz&quot;)
+p2_KO = paste0(picrust2, &quot;/KO_metagenome_out/pred_metagenome_unstrat.tsv.gz&quot;)
+p2_PW = paste0(picrust2, &quot;/pathways_out/path_abun_unstrat.tsv.gz&quot;)</code></pre>
+<p>Make stratified Picrust2 output file paths</p>
+<pre class="r"><code>p2_EC_strat = paste0(picrust2, &quot;/EC_metagenome_out/pred_metagenome_strat.tsv.gz&quot;)
+p2_KO_strat = paste0(picrust2, &quot;/KO_metagenome_out/pred_metagenome_strat.tsv.gz&quot;)
+p2_PW_strat = paste0(picrust2, &quot;/pathways_out/path_abun_strat.tsv.gz&quot;)</code></pre>
+<p>Load stratified Picrust2 output files and rename function column (I also renamed my samples to original sample IDs)</p>
+<pre class="r"><code>p2ECstrat &lt;- read_tsv(p2_EC_strat) %&gt;% as.data.frame() %&gt;% dplyr::rename(&quot;EC&quot; = &quot;function&quot;, &quot;C3_2&quot; = 
+         &quot;Altavista-VA-1&quot;, &quot;E2_4&quot; = &quot;Altavista-VA-2&quot;, &quot;E2_2&quot; = &quot;Altavista-VA-3&quot;,
+         &quot;F4_2&quot; = &quot;Altavista-VA-4&quot;, &quot;D2_3&quot; = &quot;Altavista-VA-5&quot;, &quot;WS306B&quot; = &quot;New-Bedford-MA-1&quot;, 
+         &quot;S-928&quot; = &quot;New-Bedford-MA-2&quot;, &quot;INT222&quot; = &quot;New-Bedford-MA-3&quot;, &quot;INT218&quot; = &quot;New-Bedford-MA-4&quot;, 
+         &quot;WS229&quot; = &quot;New-Bedford-MA-5&quot;)
+p2KOstrat &lt;- read_tsv(p2_KO_strat) %&gt;% as.data.frame() %&gt;% dplyr::rename(&quot;KO&quot; = &quot;function&quot;, &quot;C3_2&quot; = 
+         &quot;Altavista-VA-1&quot;, &quot;E2_4&quot; = &quot;Altavista-VA-2&quot;, &quot;E2_2&quot; = &quot;Altavista-VA-3&quot;,
+         &quot;F4_2&quot; = &quot;Altavista-VA-4&quot;, &quot;D2_3&quot; = &quot;Altavista-VA-5&quot;, &quot;WS306B&quot; = &quot;New-Bedford-MA-1&quot;, 
+         &quot;S-928&quot; = &quot;New-Bedford-MA-2&quot;, &quot;INT222&quot; = &quot;New-Bedford-MA-3&quot;, &quot;INT218&quot; = &quot;New-Bedford-MA-4&quot;, 
+         &quot;WS229&quot; = &quot;New-Bedford-MA-5&quot;)
+p2PWstrat &lt;- read_tsv(p2_PW_strat) %&gt;% as.data.frame() %&gt;% dplyr::rename(&quot;C3_2&quot; = 
+         &quot;Altavista-VA-1&quot;, &quot;E2_4&quot; = &quot;Altavista-VA-2&quot;, &quot;E2_2&quot; = &quot;Altavista-VA-3&quot;,
+         &quot;F4_2&quot; = &quot;Altavista-VA-4&quot;, &quot;D2_3&quot; = &quot;Altavista-VA-5&quot;, &quot;WS306B&quot; = &quot;New-Bedford-MA-1&quot;, 
+         &quot;S-928&quot; = &quot;New-Bedford-MA-2&quot;, &quot;INT222&quot; = &quot;New-Bedford-MA-3&quot;, &quot;INT218&quot; = &quot;New-Bedford-MA-4&quot;, 
+         &quot;WS229&quot; = &quot;New-Bedford-MA-5&quot;)</code></pre>
+<p>Select bphA from EC data frame (<a href="https://enzyme.expasy.org/EC/1.14.12.18" class="uri">https://enzyme.expasy.org/EC/1.14.12.18</a>)</p>
+<pre class="r"><code>p2bphA &lt;- filter(p2ECstrat, EC == &quot;EC:1.14.12.18&quot;)</code></pre>
+<p>Pivot to long form, link with metadata table, and graph</p>
+<pre class="r"><code>p2bphA_total &lt;- p2bphA %&gt;% dplyr::select(c(&quot;EC&quot;, &quot;C3_2&quot;, &quot;E2_4&quot;, &quot;E2_2&quot;, &quot;F4_2&quot;, &quot;D2_3&quot;, &quot;WS306B&quot;, &quot;S-928&quot;, &quot;INT222&quot;, &quot;INT218&quot;, &quot;WS229&quot;)) %&gt;% pivot_longer(!EC, names_to = &quot;Sample_ID&quot;, values_to = &quot;counts&quot;) %&gt;% inner_join(., samdf, by = c(&quot;Sample_ID&quot;))
+
+chart_title &lt;- expression(paste(&quot;PICRUSt2 Predicted &quot;, italic(&quot;bphA&quot;), &quot; Abundance&quot;))
+
+ifelse(!dir.exists(&quot;picrust2_plots&quot;), dir.create(&quot;picrust2_plots&quot;), 
+       FALSE)
+
+p2bphA_bar &lt;- ggplot(data = p2bphA_total, aes(x = Sample_ID, y = counts, fill = Location)) +
+  geom_col() + facet_wrap(&quot;Location&quot;, scales = &quot;free_x&quot;) + theme(legend.position = &quot;none&quot;) +
+  theme(axis.text.x = element_text(angle = 90)) + ylab(&quot;Abundance&quot;) + ggtitle(chart_title) +
+  scale_fill_manual(values = c(NBH = &quot;blue&quot;, AVL = &quot;red&quot;)) + theme_bw()
+ 
+ggsave(&quot;picrust2_plots/p2bphA_bar.png&quot;, width = 8, height = 8, dpi = 300)</code></pre>
+<p>Load metadata for calculating abundance per g sediment</p>
+<pre class="r"><code>p2meta &lt;- data.frame(read.csv(&#39;picrust2_meta.csv&#39;, header = TRUE, sep = &quot;,&quot;))
+  head(p2meta)</code></pre>
+<p>Join metadata with bphA data, calculate predicted counts per g sediment, graph</p>
+<pre class="r"><code>p2bphA_per_g &lt;- p2bphA_total %&gt;% inner_join(., p2meta, by = c(&quot;Sample_ID&quot;, &quot;Location&quot;)) %&gt;%
+  dplyr::mutate(counts_per_uL_DNA = counts / Volume_uL) %&gt;% 
+  dplyr::mutate(counts_per_g_sed = (counts_per_uL_DNA * original_volume_uL) / sediment_g)
+
+chart_title &lt;- expression(paste(&quot;PICRUSt2 Predicted &quot;, italic(&quot;bphA&quot;), &quot; Abundance per g Sediment&quot;))
+y_axis_title &lt;- expression(Counts ~ g^-1 ~ Sediment)
+
+ifelse(!dir.exists(&quot;picrust2_plots&quot;), dir.create(&quot;picrust2_plots&quot;), 
+       FALSE)
+
+p2bphA_bar_per_g &lt;- ggplot(data = p2bphA_per_g, aes(x = Sample_ID, y = counts_per_g_sed, fill = Location)) +
+  geom_col() + facet_wrap(&quot;Location&quot;, scales = &quot;free_x&quot;) + theme(legend.position = &quot;none&quot;) +
+  theme(axis.text.x = element_text(angle = 90)) + ylab(y_axis_title) + ggtitle(chart_title) +
+  scale_fill_manual(values = c(NBH = &quot;blue&quot;, AVL = &quot;red&quot;)) + xlab(&quot;Sample&quot;) + theme_bw()
+ 
+ggsave(&quot;picrust2_plots/p2bphA_per_g_bar.png&quot;, width = 8, height = 8, dpi = 300)
+
+p2bphA_bar_per_g_loc &lt;- ggplot(data = p2bphA_per_g, aes(x = Location, y = counts_per_g_sed, fill = Location)) +
+  geom_col(width = 0.5) + theme(legend.position = &quot;none&quot;) +
+  theme(axis.text.x = element_text(angle = 90)) + ylab(y_axis_title) + ggtitle(chart_title) +
+  scale_fill_manual(values = c(NBH = &quot;blue&quot;, AVL = &quot;red&quot;)) + xlab(&quot;Sample&quot;) + theme_bw()
+
+ggsave(&quot;picrust2_plots/p2bphA_per_g_loc_bar.png&quot;, width = 6, height = 8, dpi = 300)</code></pre>
+<p>Convert EC data to relative abundance</p>
+<pre class="r"><code>EC_rabun &lt;- p2ECstrat %&gt;%
+  bind_rows(dplyr::summarise(.,
+                      across(where(is.numeric), sum),
+                      across(where(is.character), ~&quot;Total&quot;))) %&gt;% 
+  dplyr::select(c(&quot;EC&quot;, &quot;C3_2&quot;, &quot;E2_4&quot;, &quot;E2_2&quot;, &quot;F4_2&quot;, &quot;D2_3&quot;, 
+                  &quot;WS306B&quot;, &quot;S-928&quot;, &quot;INT222&quot;, &quot;INT218&quot;, &quot;WS229&quot;)) %&gt;% 
+  filter(EC == &quot;Total&quot;) %&gt;%
+  pivot_longer(!EC, names_to = &quot;Sample_ID&quot;, values_to = &quot;counts&quot;) %&gt;% 
+  inner_join(., samdf, by = c(&quot;Sample_ID&quot;))
+
+EC_bphA_rabun &lt;- EC_rabun %&gt;% inner_join(., p2bphA_total, by = c(&quot;Sample_ID&quot;, &quot;Location&quot;)) %&gt;% 
+  dplyr::mutate(relative_abundance = counts.y / counts.x) %&gt;% 
+  dplyr::select(-c(&quot;counts.y&quot;, &quot;counts.x&quot;, &quot;EC.x&quot;, &quot;EC.y&quot;))
+
+chart_title &lt;- expression(paste(&quot;PICRUSt2 Predicted &quot;, italic(&quot;bphA&quot;), &quot; Relative Abundance&quot;))
+
+ifelse(!dir.exists(&quot;picrust2_plots&quot;), dir.create(&quot;picrust2_plots&quot;), 
+       FALSE)
+
+p2bphA_bar_rel2 &lt;- ggplot(data = EC_bphA_rabun, aes(x = Sample_ID, y = relative_abundance, fill = Location)) +
+  geom_col() + theme(legend.position = &quot;none&quot;) +
+  theme(axis.text.x = element_text(angle = 90)) + ylab(&quot;Relative Abundance&quot;) + ggtitle(chart_title) +
+  scale_fill_manual(values = c(NBH = &quot;blue&quot;, AVL = &quot;red&quot;)) + xlab(&quot;Sample&quot;) + theme_bw()
+
+ggsave(&quot;picrust2_plots/p2bphA_rel.png&quot;, width = 8, height = 8, dpi = 300)
+
+p2bphA_bar_rel_loc &lt;- ggplot(data = EC_bphA_rabun, aes(x = Location, y = relative_abundance, fill = Location)) +
+  geom_col(width = 0.5) + theme(legend.position = &quot;none&quot;) +
+  theme(axis.text.x = element_text(angle = 90)) + ylab(&quot;Relative Abundance&quot;) + ggtitle(chart_title) +
+  scale_fill_manual(values = c(NBH = &quot;blue&quot;, AVL = &quot;red&quot;)) + xlab(&quot;Sample&quot;) + theme_bw()
+
+ggsave(&quot;picrust2_plots/p2bphA_rel_loc_bar.png&quot;, width = 6, height = 8, dpi = 300)</code></pre>
+<p>Load qPCR relative abundance data (bphA vs. 16S for comparison)</p>
+<pre class="r"><code>qPCRmeta &lt;- data.frame(read.csv(&#39;qPCR_meta.csv&#39;, header = TRUE, sep = &quot;,&quot;)) %&gt;% 
+  dplyr::mutate(Analysis = &quot;qPCR&quot;)
+  head(qPCRmeta)</code></pre>
+<p>Join qPCR data with PICRUSt2 relative abundance data, graph</p>
+<pre class="r"><code>p2vsqPCR &lt;- EC_bphA_rabun %&gt;% dplyr::mutate(Analysis = &quot;PICRUSt2&quot;) %&gt;% full_join(., qPCRmeta, by = c(&quot;Sample_ID&quot;, &quot;Location&quot;, &quot;Analysis&quot;, &quot;relative_abundance&quot;))
+
+ifelse(!dir.exists(&quot;picrust2_plots&quot;), dir.create(&quot;picrust2_plots&quot;), 
+       FALSE)
+
+chart_title &lt;- expression(paste(&quot;PICRUSt2 Predicted vs qPCR Measured &quot;, italic(&quot;bphA&quot;), &quot; Relative Abundance&quot;))
+
+p2vsqPCRbphA_bar_rel &lt;- ggplot(data = p2vsqPCR, aes(x = Sample_ID, y = relative_abundance, fill = Location)) +
+  geom_col() + theme(legend.position = &quot;none&quot;) + facet_wrap(&quot;Analysis&quot;, scales = &quot;free&quot;) + ylab(&quot;Relative Abundance&quot;) + ggtitle(chart_title) + scale_fill_manual(values = c(NBH = &quot;blue&quot;, AVL = &quot;red&quot;)) + xlab(&quot;Sample&quot;) + theme_bw() + theme(axis.text.x = element_text(angle = 90))
+
+ggsave(&quot;picrust2_plots/p2vsqPCRbphA_rel.png&quot;, width = 8, height = 8, dpi = 300)
+
+p2vsqPCRbphA_bar_rel_loc &lt;- ggplot(data = p2vsqPCR, aes(x = Location, y = relative_abundance, fill = Location)) +
+  geom_col(width = 0.5) + facet_wrap(&quot;Analysis&quot;, scales = &quot;free&quot;) + ylab(&quot;Relative Abundance&quot;) + ggtitle(chart_title) + scale_fill_manual(values = c(NBH = &quot;blue&quot;, AVL = &quot;red&quot;)) + xlab(&quot;Sample Location&quot;) + theme_bw() + theme(axis.text.x = element_text(angle = 90)) + theme(legend.position = &quot;none&quot;)
+
+ggsave(&quot;picrust2_plots/p2vsqPCRbphA_rel_loc.png&quot;, width = 8, height = 8, dpi = 300)
+
+#qPCR log scale plot
+chart_title2 &lt;- expression(paste(&quot;qPCR Measured &quot;, italic(&quot;bphA&quot;), &quot; Relative Abundance&quot;))
+
+qPCRbphA_bar_per_g &lt;- ggplot(data = qPCRmeta, aes(x = Sample_ID, y = relative_abundance, fill = Location)) + scale_y_log10() +
+  geom_col(width = 0.5) + ylab(y_axis_title) + ggtitle(chart_title2) +
+  scale_fill_manual(values = c(NBH = &quot;blue&quot;, AVL = &quot;red&quot;)) + xlab(&quot;Sample&quot;) +  scale_y_log10() + theme_bw() +
+  theme(legend.position = &quot;none&quot;) +
+  theme(axis.text.x = element_text(angle = 90))
+
+ggsave(&quot;picrust2_plots/qPCRbphA_per_g_bar.png&quot;, width = 6, height = 8, dpi = 300)</code></pre>
+<p>ALDEx2 Analysis:</p>
+<p>Set Picrust2 mapfile folder (located in the picrust2 installation folder)</p>
+<pre class="r"><code>mapfile = &quot;picrust2-2.5.0/picrust2/default_files/description_mapfiles&quot;
+list.files(mapfile, recursive = TRUE)</code></pre>
+<p>Make Picrust2 map file paths</p>
+<pre class="r"><code>mapfile_EC = paste0(mapfile, &quot;/ec_level4_info.tsv.gz&quot;)
+mapfile_KO = paste0(mapfile, &quot;/ko_info.tsv.gz&quot;)
+mapfile_PW = paste0(mapfile, &quot;/metacyc_pathways_info.txt.gz&quot;)</code></pre>
+<p>Load map files</p>
+<pre class="r"><code>mapEC = as.data.frame(fread(mapfile_EC, header = FALSE))
+colnames(mapEC) = c(&quot;function&quot;,&quot;description&quot;)
+mapKO = as.data.frame(fread(mapfile_KO, header = FALSE, sep = &quot;\t&quot;))
+colnames(mapKO) = c(&quot;function&quot;,&quot;description&quot;)
+mapPW = as.data.frame(fread(mapfile_PW, header = FALSE))
+colnames(mapPW) = c(&quot;pathway&quot;,&quot;description&quot;)</code></pre>
+<p>Load Picrust2 output files</p>
+<pre class="r"><code>p2EC = as.data.frame(fread(p2_EC))
+rownames(p2EC) = p2EC$&quot;function&quot;
+p2EC = as.matrix(p2EC[,-1])
+p2EC = round(p2EC)
+
+p2KO = as.data.frame(fread(p2_KO))
+rownames(p2KO) = p2KO$&quot;function&quot;
+p2KO = as.matrix(p2KO[,-1])
+p2KO = round(p2KO)
+
+p2PW = as.data.frame(fread(p2_PW))
+rownames(p2PW) = p2PW$&quot;pathway&quot;
+p2PW = as.matrix(p2PW[,-1])
+p2PW = round(p2PW)</code></pre>
+<p>Perform statistical analysis (using Welch’s t-test) -If the test is ‘glm’, then effect should be FALSE. The ‘glm’ option evaluates the data as a one-way ANOVA using the glm and Kruskal-Wallace test -If the test is ‘t’, then effect should be set to TRUE. The ‘t’ option evaluates the data as a two-factor experiment using both the Welch’s t and the Wilcoxon rank tests -All tests include a Benjamini-Hochberg correction of the raw P values -If you want to test multiple factors, you will need to re-run the code and specify the group after the $ sign and rename the output.</p>
+<pre class="r"><code># EC
+set.seed(12345)
+system.time({
+        aldex2_EC = aldex(p2EC, sample_data(ps1)$Location, mc.samples = 500, test = &quot;t&quot;, 
+               effect = TRUE, denom = &quot;iqlr&quot;, verbose = TRUE)
+})</code></pre>
+<pre class="r"><code># KO
+set.seed(12345)
+system.time({
+        aldex2_KO = aldex(p2KO, sample_data(ps1)$Location, mc.samples = 500, test = &quot;t&quot;, 
+               effect = TRUE, denom = &quot;iqlr&quot;, verbose = TRUE)
+})</code></pre>
+<pre class="r"><code># Pathway
+set.seed(12345)
+system.time({
+        aldex2_PW = aldex(p2PW, sample_data(ps1)$Location, mc.samples = 500, test = &quot;t&quot;, 
+               effect = TRUE, denom = &quot;iqlr&quot;, verbose = TRUE)
+})</code></pre>
+<p>See an ALDEx2 Output</p>
+<pre class="r"><code>head(aldex2_KO, 10)</code></pre>
+<p>Check estimated effect size -AlDEx2 authors recommend using an effect size of 1 as a significance cutoff</p>
+<pre class="r"><code>ifelse(!dir.exists(&quot;ALDEx2_statistical_analysis&quot;), 
+       dir.create(&quot;ALDEx2_statistical_analysis&quot;), FALSE)
+
+png(&quot;ALDEx2_statistical_analysis/ALDEx2_picrust2_effect.png&quot;, width = 6, height = 6, units = &quot;in&quot;, res = 300)
+par(mfrow = c(2,2))
+hist(aldex2_EC$effect, breaks = 20, xlab = &quot;effect size&quot;, col = &quot;yellow&quot;, main = &quot;EC&quot;)
+hist(aldex2_KO$effect, breaks = 20, xlab = &quot;effect size&quot;, col = &quot;yellow&quot;, main = &quot;KO&quot;)
+hist(aldex2_PW$effect, breaks = 20, xlab = &quot;effect size&quot;, col = &quot;yellow&quot;, main = &quot;Pathway&quot;)
+invisible(dev.off())</code></pre>
+<p>Plotting of Outputs -create MW (fold-change to variance/effect) and MA (Bland-Altman) plots</p>
+<pre class="r"><code>ifelse(!dir.exists(&quot;ALDEx2_statistical_analysis&quot;), 
+       dir.create(&quot;ALDEx2_statistical_analysis&quot;), FALSE)
+
+png(&quot;ALDEx2_statistical_analysis/ALDEx2_picrust2_MW_MA.png&quot;, width = 6, height = 8, units = &quot;in&quot;, res = 300)
+par(mfrow = c(3,2))
+aldex.plot(aldex2_EC, type = &quot;MW&quot;, test = &quot;wilcox&quot;, all.cex = 0.4, rare.cex = 0.4, 
+       called.cex = 0.6, cutoff = 0.05, xlab = &quot;Dispersion&quot;, ylab = &quot;Difference&quot;)
+title(main = &quot;(EC) MW Plot&quot;)
+
+aldex.plot(aldex2_EC, type = &quot;MA&quot;, test = &quot;wilcox&quot;, all.cex = 0.4, rare.cex = 0.4, 
+       called.cex = 0.6, cutoff = 0.05, xlab = &quot;Log-ratio abundance&quot;, ylab = &quot;Difference&quot;)
+title(main = &quot;(EC) MA Plot&quot;)
+
+aldex.plot(aldex2_KO, type = &quot;MW&quot;, test = &quot;wilcox&quot;, all.cex = 0.4, rare.cex = 0.4, 
+       called.cex = 0.6, cutoff = 0.05, xlab = &quot;Dispersion&quot;, ylab = &quot;Difference&quot;)
+title(main = &quot;(KO) MW Plot&quot;)
+
+aldex.plot(aldex2_KO, type = &quot;MA&quot;, test = &quot;wilcox&quot;, all.cex = 0.4, rare.cex = 0.4, 
+       called.cex = 0.6, cutoff = 0.05, xlab = &quot;Relative abundance&quot;, ylab = &quot;Difference&quot;)
+title(main = &quot;(KO) MA Plot&quot;)
+
+aldex.plot(aldex2_PW, type = &quot;MW&quot;, test = &quot;wilcox&quot;, all.cex = 0.4, rare.cex = 0.4, 
+       called.cex = 0.6, cutoff = 0.05, xlab = &quot;Dispersion&quot;, ylab = &quot;Difference&quot;)
+title(main = &quot;(PW) MW Plot&quot;)
+
+aldex.plot(aldex2_PW, type = &quot;MA&quot;, test = &quot;wilcox&quot;, all.cex = 0.4, rare.cex = 0.4, 
+       called.cex = 0.6, cutoff = 0.05, xlab = &quot;Relative abundance&quot;, ylab = &quot;Difference&quot;)
+title(main = &quot;(PW) MA Plot&quot;)
+invisible(dev.off())</code></pre>
+<p>Relationship between effect, difference, and P values</p>
+<pre class="r"><code>ifelse(!dir.exists(&quot;ALDEx2_statistical_analysis&quot;), 
+       dir.create(&quot;ALDEx2_statistical_analysis&quot;), FALSE)
+
+png(&quot;ALDEx2_statistical_analysis/ALDEx2_picrust2_P_adjP.png&quot;, width = 6, height = 8, units = &quot;in&quot;, res = 300)
+par(mfrow = c(3,2))
+plot(aldex2_EC$effect, aldex2_EC$we.ep, log = &quot;y&quot;, cex = 0.4, col = &quot;blue&quot;, pch = 19, 
+     xlab = &quot;Effect size&quot;, ylab = &quot;P value&quot;, main = &quot;(EC) Effect size plot&quot;)
+points(aldex2_EC$effect, aldex2_EC$we.eBH, cex = 0.5, col = &quot;red&quot;, pch = 19)
+abline(h = 0.05, lty = 2, col = &quot;grey&quot;)
+legend(&quot;bottom&quot;, legend = c(&quot;P value&quot;, &quot;BH-adjusted&quot;), pch = 19, col = c(&quot;blue&quot;, &quot;red&quot;))
+
+plot(aldex2_EC$diff.btw, aldex2_EC$we.ep, log = &quot;y&quot;, cex = 0.4, col = &quot;blue&quot;, pch = 19, 
+     xlab = &quot;Difference&quot;, ylab = &quot;P value&quot;, main = &quot;(EC) Volcano plot&quot;)
+points(aldex2_EC$diff.btw, aldex2_EC$we.eBH, cex = 0.5, col = &quot;red&quot;, pch = 19)
+abline(h = 0.05, lty = 2, col = &quot;grey&quot;)
+
+plot(aldex2_KO$effect, aldex2_KO$we.ep, log = &quot;y&quot;, cex = 0.4, col = &quot;blue&quot;, pch = 19, 
+     xlab = &quot;Effect size&quot;, ylab = &quot;P value&quot;, main = &quot;(KO) Effect size plot&quot;)
+points(aldex2_KO$effect, aldex2_KO$we.eBH, cex = 0.5, col = &quot;red&quot;, pch = 19)
+abline(h = 0.05, lty = 2, col = &quot;grey&quot;)
+legend(&quot;bottom&quot;, legend = c(&quot;P value&quot;, &quot;BH-adjusted&quot;), pch = 19, col = c(&quot;blue&quot;, &quot;red&quot;))
+
+plot(aldex2_KO$diff.btw, aldex2_KO$we.ep, log = &quot;y&quot;, cex = 0.4, col = &quot;blue&quot;, pch = 19, 
+     xlab = &quot;Difference&quot;, ylab = &quot;P value&quot;, main = &quot;(KO) Volcano plot&quot;)
+points(aldex2_KO$diff.btw, aldex2_KO$we.eBH, cex = 0.5, col = &quot;red&quot;, pch = 19)
+abline(h = 0.05, lty = 2, col = &quot;grey&quot;)
+
+plot(aldex2_PW$effect, aldex2_PW$we.ep, log = &quot;y&quot;, cex = 0.4, col = &quot;blue&quot;, pch = 19, 
+     xlab = &quot;Effect size&quot;, ylab = &quot;P value&quot;, main = &quot;(PW) Effect size plot&quot;)
+points(aldex2_PW$effect, aldex2_PW$we.eBH, cex = 0.5, col = &quot;red&quot;, pch = 19)
+abline(h = 0.05, lty = 2, col = &quot;grey&quot;)
+legend(&quot;bottom&quot;, legend = c(&quot;P value&quot;, &quot;BH-adjusted&quot;), pch = 19, col = c(&quot;blue&quot;, &quot;red&quot;))
+
+plot(aldex2_PW$diff.btw, aldex2_PW$we.ep, log = &quot;y&quot;, cex = 0.4, col = &quot;blue&quot;, pch = 19, 
+     xlab = &quot;Difference&quot;, ylab = &quot;P value&quot;, main = &quot;(PW) Volcano plot&quot;)
+points(aldex2_PW$diff.btw, aldex2_PW$we.eBH, cex = 0.5, col = &quot;red&quot;, pch = 19)
+abline(h = 0.05, lty = 2, col = &quot;grey&quot;)
+invisible(dev.off())</code></pre>
+<p>Create output files -Merge with map file data</p>
+<pre class="r"><code>df_EC = aldex2_EC %&gt;% tibble::rownames_to_column(var = &quot;EC&quot;) %&gt;% 
+    inner_join(mapEC, by = c(&quot;EC&quot; = &quot;function&quot;)) %&gt;% arrange(EC)
+
+df_KO = aldex2_KO %&gt;% tibble::rownames_to_column(var = &quot;KO&quot;) %&gt;% 
+    inner_join(mapKO, by = c(&quot;KO&quot; = &quot;function&quot;)) %&gt;% arrange(KO)
+
+df_PW = aldex2_PW %&gt;% tibble::rownames_to_column(var = &quot;Pathway&quot;) %&gt;% 
+    inner_join(mapPW, by = c(&quot;Pathway&quot; = &quot;pathway&quot;)) %&gt;% arrange(Pathway)</code></pre>
+<p>output to files</p>
+<pre class="r"><code>ifelse(!dir.exists(&quot;ALDEx2_statistical_analysis&quot;), 
+       dir.create(&quot;ALDEx2_statistical_analysis&quot;), FALSE)
+
+write.table(df_EC, file = &quot;ALDEx2_statistical_analysis/ALDEx2_picrust2_EC_results_1.tsv&quot;, sep = &quot;\t&quot;, quote = F, 
+        row.names = F, col.names = T)
+write.table(df_KO, file = &quot;ALDEx2_statistical_analysis/ALDEx2_picrust2_KO_results_1.tsv&quot;, sep = &quot;\t&quot;, quote = F, 
+        row.names = F, col.names = T)
+write.table(df_PW, file = &quot;ALDEx2_statistical_analysis/ALDEx2_picrust2_Pathway_results_1.tsv&quot;, sep = &quot;\t&quot;, quote = F, 
+        row.names = F, col.names = T)</code></pre>
+
+
+
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

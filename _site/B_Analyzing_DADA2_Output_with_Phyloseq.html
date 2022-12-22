@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+<meta name="author" content="David Ramotowski" />
+
+<meta name="date" content="2022-12-22" />
+
+<title>Part 2: Analyzing DADA2 Output With Phyloseq</title>
+
+<script src="site_libs/header-attrs-2.19/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/yeti.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/default.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark the anchor link active (and if it's in a dropdown, also mark that active)
+  var dropdown = menuAnchor.closest('li.dropdown');
+  if (window.bootstrap) { // Bootstrap 4+
+    menuAnchor.addClass('active');
+    dropdown.find('> .dropdown-toggle').addClass('active');
+  } else { // Bootstrap 3
+    menuAnchor.parent().addClass('active');
+    dropdown.addClass('active');
+  }
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-bs-toggle="collapse" data-target="#navbar" data-bs-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">Main Steps</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="A_Setup_and_Running_DADA2_Pipeline.html">DADA2 Pipeline</a>
+</li>
+<li>
+  <a href="B_Analyzing_DADA2_Output_with_Phyloseq.html">Phyloseq</a>
+</li>
+<li>
+  <a href="C_Predicting_Functional_Gene_Abundance_with_PICRUSt2_and_ALDEx2.html">PICRUSt2 and ALDEx2</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="header">
+
+
+
+<h1 class="title toc-ignore">Part 2: Analyzing DADA2 Output With Phyloseq</h1>
+<h4 class="author">David Ramotowski</h4>
+<h4 class="date">12/22/2022</h4>
+
+</div>
+
+
+<p>Part 4: Further Microbiome Analysis Using Phyloseq</p>
+<p>Upload sample metadata file (optional, good if comparing multiple factors) -Make sure sample names in 1st column match names of the otu table</p>
+<pre class="r"><code>  samdf &lt;- data.frame(read.csv(&#39;sample_meta.csv&#39;, header = TRUE, 
+                               row.names = 1, sep = &quot;,&quot;))
+  head(samdf)</code></pre>
+<p>Create Phyloseq object (remove sample_data command if you are not using a metadata file)</p>
+<pre class="r"><code>  theme_set(theme_bw())
+  ps &lt;- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE), 
+                 tax_table(taxa), sample_data(samdf)) 
+  #creates phyloseq object from DADA2 outputs
+  dna &lt;- Biostrings::DNAStringSet(taxa_names(ps))
+  names(dna) &lt;- taxa_names(ps)
+  ps &lt;- merge_phyloseq(ps, dna)
+  taxa_names(ps) &lt;- paste0(&quot;ASV&quot;, seq(ntaxa(ps)))
+  ps</code></pre>
+<pre><code>Create ASV and Taxonomy Tables</code></pre>
+<pre class="r"><code>write.table(as.data.table(otu_table(ps), keep.rownames = T), file = 
+              &quot;expr.otu_table.tsv&quot;, 
+        sep = &quot;\t&quot;, quote = F, row.names = F, col.names = T)
+write.table(as.data.table(tax_table(ps), keep.rownames = T), file = 
+              &quot;expr.tax_table.tsv&quot;, 
+        sep = &quot;\t&quot;, quote = F, row.names = F, col.names = T)</code></pre>
+<p>Create raw abundance tables Remove Sample_ID in group_by() it doesn’t exist, then replace pivot_wider(names_from = Sample_ID, values_from = Abundance) with spread(Sample_ID, Abundance), you can also change Sample_ID to other variables from metadata.</p>
+<pre class="r"><code>ifelse(!dir.exists(&quot;raw_abundance_tables&quot;), dir.create(&quot;raw_abundance_tables&quot;), 
+       FALSE)
+write.table(ps %&gt;% psmelt() %&gt;% 
+        arrange(OTU) %&gt;% dplyr::rename(ASV = OTU) %&gt;% 
+        dplyr::select(ASV, Kingdom, Phylum, Class, Order, Family, Genus, 
+               Sample_ID, Abundance) %&gt;%
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = &quot;raw_abundance_tables/expr.abundance.all.tsv&quot;, 
+    sep = &quot;\t&quot;, quote = F, row.names = F, col.names = T)
+write.table(ps %&gt;% tax_glom(taxrank = &quot;Phylum&quot;) %&gt;% psmelt() %&gt;%   
+        dplyr::select(Phylum, Sample_ID, Abundance) %&gt;% dplyr::group_by(Phylum, Sample_ID) 
+        %&gt;% dplyr::summarise(Abundance = sum(Abundance)) %&gt;% 
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = &quot;raw_abundance_tables/expr.abundance.abphy.tsv&quot;, 
+    sep = &quot;\t&quot;, quote = F, row.names = F, col.names = T)
+write.table(ps %&gt;% tax_glom(taxrank = &quot;Class&quot;) %&gt;% psmelt() %&gt;%   
+        dplyr::select(Class, Sample_ID, Abundance) %&gt;% dplyr::group_by(Class, Sample_ID) 
+        %&gt;% dplyr::summarise(Abundance = sum(Abundance)) %&gt;% 
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = &quot;raw_abundance_tables/expr.abundance.abcls.tsv&quot;, 
+    sep = &quot;\t&quot;, quote = F, row.names = F, col.names = T)
+write.table(ps %&gt;% tax_glom(taxrank = &quot;Family&quot;) %&gt;% psmelt() %&gt;%   
+        dplyr::select(Family, Sample_ID, Abundance) %&gt;% dplyr::group_by(Family, Sample_ID) 
+        %&gt;% dplyr::summarise(Abundance = sum(Abundance)) %&gt;% 
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = &quot;raw_abundance_tables/expr.abundance.abfam.tsv&quot;, 
+    sep = &quot;\t&quot;, quote = F, row.names = F, col.names = T)
+write.table(ps %&gt;% tax_glom(taxrank = &quot;Genus&quot;) %&gt;% psmelt() %&gt;%   
+        dplyr::select(Genus, Sample_ID, Abundance) %&gt;% dplyr::group_by(Genus, Sample_ID) 
+        %&gt;% dplyr::summarise(Abundance = sum(Abundance)) %&gt;% 
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = &quot;raw_abundance_tables/expr.abundance.abgen.tsv&quot;, 
+    sep = &quot;\t&quot;, quote = F, row.names = F, col.names = T)</code></pre>
+<p>Create relative abundance tables Remove Sample_ID in group_by() it doesn’t exist, then replace pivot_wider(names_from = Sample_ID, values_from = Abundance) with spread(Sample_ID, Abundance), you can also change Sample_ID to other variables from metadata.</p>
+<pre class="r"><code>ifelse(!dir.exists(&quot;relative_abundance_tables&quot;), 
+       dir.create(&quot;relative_abundance_tables&quot;), FALSE)
+
+write.table(ps %&gt;% transform_sample_counts(function(x) {x/sum(x)} ) %&gt;% 
+              psmelt() %&gt;% 
+        arrange(OTU) %&gt;% dplyr::rename(ASV = OTU) %&gt;% 
+        dplyr::select(ASV, Kingdom, Phylum, Class, Order, Family, Genus, 
+               Sample_ID, Abundance) %&gt;%
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = &quot;relative_abundance_tables/expr.relative_abundance.all.tsv&quot;, 
+    sep = &quot;\t&quot;, quote = F, row.names = F, col.names = T)
+write.table(ps %&gt;% tax_glom(taxrank = &quot;Phylum&quot;) %&gt;% 
+        transform_sample_counts(function(x) {x/sum(x)} ) %&gt;% psmelt() %&gt;%   
+        dplyr::select(Phylum, Sample_ID, Abundance) %&gt;% dplyr::group_by(Phylum, Sample_ID) 
+        %&gt;% dplyr::summarise(Abundance = sum(Abundance)) %&gt;% 
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = &quot;relative_abundance_tables/expr.relative_abundance.abphy.tsv&quot;, 
+    sep = &quot;\t&quot;, quote = F, row.names = F, col.names = T)
+write.table(ps %&gt;% tax_glom(taxrank = &quot;Class&quot;) %&gt;% 
+        transform_sample_counts(function(x) {x/sum(x)} ) %&gt;% psmelt() %&gt;%   
+        dplyr::select(Class, Sample_ID, Abundance) %&gt;% dplyr::group_by(Class, Sample_ID) 
+        %&gt;% dplyr::summarise(Abundance = sum(Abundance)) %&gt;% 
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = &quot;relative_abundance_tables/expr.relative_abundance.abcls.tsv&quot;, 
+    sep = &quot;\t&quot;, quote = F, row.names = F, col.names = T)
+write.table(ps %&gt;% tax_glom(taxrank = &quot;Family&quot;) %&gt;% 
+        transform_sample_counts(function(x) {x/sum(x)} ) %&gt;% psmelt() %&gt;%   
+        dplyr::select(Family, Sample_ID, Abundance) %&gt;% dplyr::group_by(Family, Sample_ID) 
+        %&gt;% dplyr::summarise(Abundance = sum(Abundance)) %&gt;% 
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = &quot;relative_abundance_tables/expr.relative_abundance.abfam.tsv&quot;, 
+    sep = &quot;\t&quot;, quote = F, row.names = F, col.names = T)
+write.table(ps %&gt;% tax_glom(taxrank = &quot;Genus&quot;) %&gt;% 
+        transform_sample_counts(function(x) {x/sum(x)} ) %&gt;% psmelt() %&gt;%   
+        dplyr::select(Genus, Sample_ID, Abundance) %&gt;% dplyr::group_by(Genus, Sample_ID) 
+        %&gt;% dplyr::summarise(Abundance = sum(Abundance)) %&gt;% 
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = &quot;relative_abundance_tables/expr.relative_abundance.abgen.tsv&quot;, 
+    sep = &quot;\t&quot;, quote = F, row.names = F, col.names = T)</code></pre>
+<p>Plot abundance step 1 Taxonomic Filtering (only used for bar plots):</p>
+<pre class="r"><code>#Show available ranks in the dataset
+rank_names(ps)</code></pre>
+<pre class="r"><code>#Create table with number of phylum features
+table(tax_table(ps)[, &quot;Phylum&quot;], exclude = NULL)</code></pre>
+<p>In this case, I filtered out phyla with only one feature as well as any NA phyla (likely artifacts), this can/will change based on your samples</p>
+<pre class="r"><code>ps0 &lt;- subset_taxa(ps, !is.na(Phylum) &amp; !Phylum %in% 
+                     c(&quot;&quot;, &quot;Edwardsbacteria&quot;, &quot;Hydrothermae&quot;))</code></pre>
+<p>Prevalence filtering:</p>
+<pre class="r"><code># Compute prevalence of each feature, store as data frame
+prevdf &lt;- apply(X = otu_table(ps),
+               MARGIN = ifelse(taxa_are_rows(ps), yes = 1, no = 2),
+               FUN = function(x){sum(x &gt; 0)})
+
+# Add taxonomy and total read counts to this data frame
+prevdf &lt;- data.frame(Prevalence = prevdf,
+                    TotalAbundance = taxa_sums(ps),
+                    tax_table(ps))
+
+#Compute average (column 1) total prevalence (column 2) of each feature
+plyr::ddply(prevdf, &quot;Phylum&quot;, function(df1){cbind(mean(df1$Prevalence),
+                                                  sum(df1$Prevalence))})</code></pre>
+<p>Only run this chunk if there are phyla in the previous table with really low prevalence</p>
+<pre class="r"><code># Define phyla to filter if needed, won&#39;t filter at this step in my case
+filterPhyla &lt;- c(&quot;&quot;)
+
+# Filter entries with unidentified Phylum.  Only run this code if you filtered 
+ps0 &lt;- subset_taxa(ps0, !Phylum %in% filterPhyla)
+ps</code></pre>
+<p>Subset and plot remaining ASV’s with line showing 5% abundance threshold (if it’s hard to see the plot, copy and run the code in the console below, click on the plots tab on the bottom right of RStudio and zoom)</p>
+<pre class="r"><code># Subset to the remaining phyla
+prevdf1 &lt;- subset(prevdf, Phylum %in% get_taxa_unique(ps0, &quot;Phylum&quot;))
+
+# Plot
+ggplot(prevdf1, aes(TotalAbundance, Prevalence / nsamples(ps0),color=Phylum)) +
+  # Include a guess for parameter
+  geom_point(size = 2, alpha = 0.7) +
+  geom_hline(yintercept = 0.05, alpha = 0.5, linetype = 2) +
+  scale_x_log10() +  xlab(&quot;Total Abundance&quot;) + ylab(&quot;Prevalence [Frac. Samples]&quot;) +
+  facet_wrap(~Phylum) + theme(legend.position=&quot;none&quot;)</code></pre>
+<p>Filter taxa (can change the abundance and prevalence threshold for more or less taxa)</p>
+<pre class="r"><code># Define prevalence threshold as 50% of total samples
+prevalenceThreshold = 0.5 * nsamples(ps0)
+abundanceThreshold = 10
+
+# Execute prevalence filter, using `prune_taxa()` function
+keepTaxa &lt;- rownames(prevdf1)[(prevdf1$Prevalence &gt;= prevalenceThreshold 
+                               &amp; prevdf1$TotalAbundance &gt;= abundanceThreshold)]
+ps1 &lt;- prune_taxa(keepTaxa, ps0)</code></pre>
+<p>Save results to file</p>
+<pre class="r"><code>saveRDS(ps1, &quot;ps1.rds&quot;)</code></pre>
+<p>Plot abundance step 2: calculate relative abundance</p>
+<pre class="r"><code>  # Transform to proportions (relative abundances)
+ps.rp = transform_sample_counts(ps1, function(OTU) OTU/sum(OTU)) 
+
+# Top N taxa 
+N = 50 #(can change to any number of taxa)
+topN = names(sort(taxa_sums(ps1), decreasing=TRUE))[1:N]
+ps.topN = transform_sample_counts(ps1, function(OTU) OTU/sum(OTU))
+ps.topN = prune_taxa(topN, ps.topN) 
+
+ps.topN</code></pre>
+<p>Group by phylum, place low abundance samples (&lt;1% abundance) into “other”</p>
+<pre class="r"><code>glom &lt;- tax_glom(ps.rp, taxrank = &quot;Phylum&quot;) %&gt;% psmelt()
+glom$Phylum &lt;- as.character(glom$Phylum)
+medians &lt;- ddply(glom, ~Phylum, function(x) c(median=median(x$Abundance)))
+Other &lt;- medians[medians$median &lt;= 0.01,]$Phylum
+glom[glom$Phylum %in% Other,]$Phylum &lt;- &#39;Other&#39;
+glom &lt;- glom %&gt;% 
+    rowwise() %&gt;% 
+    filter(Abundance != 0) %&gt;% 
+    group_by(Sample, Location, Sample_ID, Phylum) %&gt;% 
+    dplyr::summarise(Abundance = sum(Abundance))</code></pre>
+<p>Plot phylum barplot</p>
+<pre class="r"><code>ptaxa_trimmed = ggplot(glom, aes(x=Sample_ID, y=Abundance, fill = Phylum,)) + 
+  geom_col(size = 0.05, color = &quot;black&quot;) + facet_wrap(~Location, scales = &quot;free_x&quot;, nrow = 1) + 
+  guides(fill = guide_legend(ncol = 1)) + scale_y_continuous(breaks = seq(0, 1, 0.1)) + 
+    theme(legend.title = element_text(size = 8), legend.text = element_text(size = 5), 
+          axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5, hjust = 1), 
+          axis.text.y = element_text(size = 12)) + xlab(&quot;Sample&quot;) + ylab(&quot;Relative abundance&quot;) +
+          ggtitle(&quot;Phylum Relative Abundance&quot;) + scale_fill_brewer(palette = &quot;Spectral&quot;)
+ptaxa_trimmed</code></pre>
+<p>I will work on genus plots later…</p>
+<p>Plot phylum relative abundance (older code)</p>
+<pre class="r"><code># All taxa
+ifelse(!dir.exists(&quot;bar_plots&quot;), dir.create(&quot;bar_plots&quot;), 
+       FALSE)
+
+ptaxa1 = plot_bar(ps.rp %&gt;% tax_glom(taxrank = &quot;Phylum&quot;), x = &quot;Sample_ID&quot;, fill = &quot;Phylum&quot;, title = paste(ntaxa(ps.rp), &quot;Taxa (Phylum)&quot;)) + 
+    geom_bar(stat = &quot;identity&quot;, size = 0.05, color = &quot;black&quot;) + 
+    facet_wrap(~Location, scales = &quot;free_x&quot;, nrow = 1) + guides(fill = guide_legend(ncol = 2)) + 
+    scale_y_continuous(breaks = seq(0, 1, 0.1)) + 
+    theme(legend.title = element_text(size = 8), legend.text = element_text(size = 5), 
+          axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5, hjust = 1), 
+          axis.text.y = element_text(size = 12)) + xlab(&quot;Sample&quot;) + ylab(&quot;Relative abundance&quot;)
+
+# Top 200 taxa
+ptaxa2 = plot_bar(ps.topN %&gt;% tax_glom(taxrank = &quot;Phylum&quot;), x = &quot;Sample_ID&quot;, fill = &quot;Phylum&quot;, title = paste(ntaxa(ps.topN), &quot;Taxa (Phylum)&quot;)) + 
+    geom_bar(stat = &quot;identity&quot;, size = 0.05, color = &quot;black&quot;) + 
+    facet_wrap(~Location, scales = &quot;free_x&quot;, nrow = 1) + guides(fill = guide_legend(ncol = 2)) + 
+    scale_y_continuous(breaks = seq(0, 1, 0.1)) + 
+    theme(legend.title = element_text(size = 8), legend.text = element_text(size = 5), 
+          axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5, hjust = 1), 
+          axis.text.y = element_text(size = 12)) + xlab(&quot;Sample&quot;) + ylab(&quot;Relative abundance&quot;)
+
+png(&quot;bar_plots/plot_bar_phylum.png&quot;, width = 10, height = 10, units = &quot;in&quot;, res = 300)
+gridExtra::grid.arrange(ptaxa1, ptaxa2, nrow = 2)
+invisible(dev.off())</code></pre>
+<p>Plot class relative abundance</p>
+<pre class="r"><code>ifelse(!dir.exists(&quot;bar_plots&quot;), dir.create(&quot;bar_plots&quot;), 
+       FALSE)
+#All taxa
+ptaxa3 = plot_bar(ps.rp %&gt;% tax_glom(taxrank = &quot;Class&quot;), x = &quot;Sample_ID&quot;, fill = &quot;Class&quot;, 
+          title = paste(ntaxa(ps.rp), &quot;Taxa (Class)&quot;)) +
+        geom_bar(stat = &quot;identity&quot;, size = 0.05, color = &quot;black&quot;) +
+        facet_wrap(~Location, scales = &quot;free_x&quot;, nrow = 1) + guides(fill = guide_legend(ncol = 5)) +
+        scale_y_continuous(breaks = seq(0, 1, 0.1)) +
+        theme(legend.title = element_text(size = 8), legend.text = element_text(size = 5),
+              axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5, hjust = 1),
+              axis.text.y = element_text(size = 12)) + xlab(&quot;Sample&quot;) + ylab(&quot;Relative abundance&quot;)
+#Top 200 taxa
+ptaxa4 = plot_bar(ps.topN %&gt;% tax_glom(taxrank = &quot;Class&quot;), x = &quot;Sample_ID&quot;, fill = &quot;Class&quot;, 
+          title = paste(&quot;Top&quot;,N, &quot;Taxa (Class)&quot;)) +
+        geom_bar(stat = &quot;identity&quot;, size = 0.1, color = &quot;black&quot;) +
+        facet_wrap(~Location, scales = &quot;free_x&quot;, nrow = 1) + guides(fill = guide_legend(ncol = 5)) +
+        scale_y_continuous(breaks = seq(0, 1, 0.1)) +
+        theme(legend.title = element_text(size = 8), legend.text = element_text(size = 5),
+              axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5, hjust = 1),
+              axis.text.y = element_text(size = 12)) + xlab(&quot;Sample&quot;) + ylab(&quot;Relative Abundance&quot;)
+
+png(&quot;bar_plots/plot_bar_class.png&quot;, width = 10, height = 8, units = &quot;in&quot;, res = 300)
+gridExtra::grid.arrange(ptaxa3, ptaxa4, nrow = 2)
+invisible(dev.off())</code></pre>
+<p>Plot family relative abundance</p>
+<pre class="r"><code>ifelse(!dir.exists(&quot;bar_plots&quot;), dir.create(&quot;bar_plots&quot;), 
+       FALSE)
+#Top 200 taxa
+ptaxa5 = plot_bar(ps.topN %&gt;% tax_glom(taxrank = &quot;Family&quot;), x = &quot;Sample_ID&quot;, fill = &quot;Family&quot;, 
+          title = paste(&quot;Top&quot;,N, &quot;Taxa (Family)&quot;)) +
+        geom_bar(stat = &quot;identity&quot;, size = 0.1, color = &quot;black&quot;) +
+        facet_wrap(~Location, scales = &quot;free_x&quot;, nrow = 1) + guides(fill = guide_legend(ncol = 5)) +
+        scale_y_continuous(breaks = seq(0, 1, 0.1)) +
+        theme(legend.title = element_text(size = 8), legend.text = element_text(size = 5),
+              axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5, hjust = 1),
+              axis.text.y = element_text(size = 12)) + xlab(&quot;Sample&quot;) + ylab(&quot;Relative Abundance&quot;)
+
+png(&quot;bar_plots/plot_bar_family.png&quot;, width = 10, height = 8, units = &quot;in&quot;, res = 300)
+gridExtra::grid.arrange(ptaxa5)
+invisible(dev.off())</code></pre>
+<p>Plot genus relative abundance</p>
+<pre class="r"><code>ifelse(!dir.exists(&quot;bar_plots&quot;), dir.create(&quot;bar_plots&quot;), 
+       FALSE)
+#Top 200 taxa
+ptaxa6 = plot_bar(ps.topN %&gt;% tax_glom(taxrank = &quot;Genus&quot;), x = &quot;Sample_ID&quot;, fill = &quot;Genus&quot;, 
+          title = paste(&quot;Top&quot;,N, &quot;Taxa (Genus)&quot;)) +
+        geom_bar(stat = &quot;identity&quot;, size = 0.1, color = &quot;black&quot;) +
+        facet_wrap(~Location, scales = &quot;free_x&quot;, nrow = 1) + guides(fill = guide_legend(ncol = 5)) +
+        scale_y_continuous(breaks = seq(0, 1, 0.1)) +
+        theme(legend.title = element_text(size = 8), legend.text = element_text(size = 5),
+              axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5, hjust = 1),
+              axis.text.y = element_text(size = 12)) + xlab(&quot;Sample&quot;) + ylab(&quot;Relative Abundance&quot;)
+
+png(&quot;bar_plots/plot_bar_genus.png&quot;, width = 10, height = 8, units = &quot;in&quot;, res = 300)
+gridExtra::grid.arrange(ptaxa6)
+invisible(dev.off())</code></pre>
+<p>Alpha diversity (Shannon and Simpson) Will use the un-trimmed samples (ps) for these plots to ensure accurate species richness estimates, you can modify the x and color values based on your experiment</p>
+<pre class="r"><code># Select alpha-diversity measures
+divIdx = c(&quot;Observed&quot;, &quot;Chao1&quot;, &quot;Shannon&quot;, &quot;Simpson&quot;)
+
+ifelse(!dir.exists(&quot;diversity_plots&quot;), dir.create(&quot;diversity_plots&quot;), 
+       FALSE)
+
+png(&quot;diversity_plots/plot_richness.png&quot;, width = 6, height = 5, units = &quot;in&quot;, res = 300)
+plot_richness(ps, x = &quot;Sample_ID&quot;, measures = divIdx, color = &quot;Location&quot;, nrow = 1) + 
+    geom_point(size = 0.8) + theme_bw() + 
+    theme(legend.position = &quot;none&quot;, 
+          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) + 
+    labs(x = &quot;Sample&quot;, y = &quot;Alpha Diversity Measure&quot;)
+invisible(dev.off())</code></pre>
+<p>Alpha diversity with statistical analysis</p>
+<pre class="r"><code>ifelse(!dir.exists(&quot;diversity_plots&quot;), dir.create(&quot;diversity_plots&quot;), 
+       FALSE)
+
+png(&quot;diversity_plots/plot_richness.png&quot;, width = 5, height = 5, units = &quot;in&quot;, res = 300)
+
+a_my_comparisons &lt;- list( c(&quot;AVL&quot;, &quot;NBH&quot;))
+symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 1), symbols = c(&quot;****&quot;, &quot;***&quot;, &quot;**&quot;, &quot;*&quot;, &quot;ns&quot;))
+
+plot_richness(ps, x=&quot;Location&quot;, measures=c(&quot;Shannon&quot;, &quot;Simpson&quot;, &quot;Chao1&quot;), color = &quot;Location&quot;)+
+  geom_boxplot(alpha=0.6, width = 0.5)+ 
+  theme(legend.position= &quot;none&quot;) + theme(axis.text.x=element_text(angle=45,hjust=1,vjust=1,size=12))+
+  stat_compare_means(method = &quot;wilcox.test&quot;, comparisons = a_my_comparisons, label = &quot;p.signif&quot;, symnum.args = symnum.args) +
+  theme_bw() + labs(x = &quot;&quot;, y = &quot;Alpha Diversity&quot;)</code></pre>
+<p>Currently working on Beta Diversity…</p>
+<p>Create ASV and Taxonomy Tables with filtered taxa</p>
+<pre class="r"><code>write.table(as.data.table(otu_table(ps1), keep.rownames = T), file = 
+              &quot;expr.otu_table_filtered.tsv&quot;, 
+        sep = &quot;\t&quot;, quote = F, row.names = F, col.names = T)
+write.table(as.data.table(tax_table(ps1), keep.rownames = T), file = 
+              &quot;expr.tax_table_filtered.tsv&quot;, 
+        sep = &quot;\t&quot;, quote = F, row.names = F, col.names = T)</code></pre>
+<p>Create raw abundance tables from filtered taxa (Remove Sample_ID if it doesn’t exist, can also change to other variables from metadata)</p>
+<pre class="r"><code>ifelse(!dir.exists(&quot;raw_abundance_tables_filtered&quot;), 
+       dir.create(&quot;raw_abundance_tables_filtered&quot;), FALSE)
+write.table(ps1 %&gt;% psmelt() %&gt;% arrange(OTU) %&gt;% rename(ASV = OTU) %&gt;% 
+        select(ASV, Kingdom, Phylum, Class, Order, Family, Genus, Sample_ID, 
+               Abundance) %&gt;% 
+        spread(Sample_ID, Abundance),
+        file = &quot;raw_abundance_tables/expr.abundance.all.tsv&quot;, sep = &quot;\t&quot;, 
+        quote = F, row.names = F, col.names = T)
+write.table(ps1 %&gt;% tax_glom(taxrank = &quot;Phylum&quot;) %&gt;% psmelt() %&gt;% 
+        select(Phylum, Sample_ID, Abundance) %&gt;% spread(Sample_ID, Abundance),
+        file = &quot;raw_abundance_tables/expr.abundance.abphy.tsv&quot;, sep = &quot;\t&quot;, 
+        quote = F, row.names = F, col.names = T)
+write.table(ps1 %&gt;% tax_glom(taxrank = &quot;Class&quot;) %&gt;% psmelt() %&gt;% 
+        select(Class, Sample_ID, Abundance) %&gt;% spread(Sample_ID, Abundance),
+        file = &quot;raw_abundance_tables/expr.abundance.abcls.tsv&quot;, sep = &quot;\t&quot;, 
+        quote = F, row.names = F, col.names = T)
+write.table(ps1 %&gt;% tax_glom(taxrank = &quot;Family&quot;) %&gt;% psmelt() %&gt;%
+        select(Family, Sample_ID, Abundance) %&gt;% spread(Sample_ID, Abundance),
+        file = &quot;raw_abundance_tables/expr.abundance.abfam.tsv&quot;, sep = &quot;\t&quot;, 
+        quote = F, row.names = F, col.names = T)
+write.table(ps1 %&gt;% tax_glom(taxrank = &quot;Genus&quot;) %&gt;% psmelt() %&gt;%
+        select(Genus, Sample_ID, Abundance) %&gt;% spread(Sample_ID, Abundance),
+        file = &quot;raw_abundance_tables/expr.abundance.abgen.tsv&quot;, sep = &quot;\t&quot;, 
+        quote = F, row.names = F, col.names = T)</code></pre>
+<p>Create relative abundance tables (Remove Sample_ID if it doesn’t exist, can also change to other variables from metadata)</p>
+<pre class="r"><code>ifelse(!dir.exists(&quot;relative_abundance_tables_filtered&quot;), 
+       dir.create(&quot;relative_abundance_tables_filtered&quot;), FALSE)
+
+write.table(ps1 %&gt;% transform_sample_counts(function(x) {x/sum(x)} ) %&gt;% 
+              psmelt() %&gt;% 
+        arrange(OTU) %&gt;% rename(ASV = OTU) %&gt;% 
+        select(ASV, Kingdom, Phylum, Class, Order, Family, Genus, Species, 
+               Sample_ID, Abundance) %&gt;%
+        spread(Sample_ID, Abundance), 
+    file = &quot;relative_abundance_tables/expr.relative_abundance.all.tsv&quot;, 
+    sep = &quot;\t&quot;, quote = F, row.names = F, col.names = T)
+write.table(ps1 %&gt;% tax_glom(taxrank = &quot;Phylum&quot;) %&gt;% 
+        transform_sample_counts(function(x) {x/sum(x)} ) %&gt;% psmelt() %&gt;%
+        select(Phylum, Sample_ID, Abundance) %&gt;% spread(Sample_ID, Abundance), 
+    file = &quot;relative_abundance_tables/expr.relative_abundance.abphy.tsv&quot;, 
+    sep = &quot;\t&quot;, quote = F, row.names = F, col.names = T)
+write.table(ps1 %&gt;% tax_glom(taxrank = &quot;Class&quot;) %&gt;%
+        transform_sample_counts(function(x) {x/sum(x)} ) %&gt;% psmelt() %&gt;% 
+        select(Class, Sample_ID, Abundance) %&gt;% spread(Sample_ID, Abundance), 
+    file = &quot;relative_abundance_tables/expr.relative_abundance.abcls.tsv&quot;, 
+    sep = &quot;\t&quot;, quote = F, row.names = F, col.names = T)
+write.table(ps1 %&gt;% tax_glom(taxrank = &quot;Family&quot;) %&gt;%
+        transform_sample_counts(function(x) {x/sum(x)} ) %&gt;% psmelt() %&gt;% 
+        select(Family, Sample_ID, Abundance) %&gt;% spread(Sample_ID, Abundance), 
+    file = &quot;relative_abundance_tables/expr.relative_abundance.abfam.tsv&quot;, 
+    sep = &quot;\t&quot;, quote = F, row.names = F, col.names = T)
+write.table(ps1 %&gt;% tax_glom(taxrank = &quot;Genus&quot;) %&gt;% 
+        transform_sample_counts(function(x) {x/sum(x)} ) %&gt;% psmelt() %&gt;% 
+        select(Genus, Sample_ID, Abundance) %&gt;% spread(Sample_ID, Abundance), 
+    file = &quot;relative_abundance_tables/expr.relative_abundance.abgen.tsv&quot;, 
+    sep = &quot;\t&quot;, quote = F, row.names = F, col.names = T)</code></pre>
+
+
+
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

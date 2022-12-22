@@ -1,0 +1,8 @@
+---
+title: "16S rRNA Sequencing Analysis Workflow"
+---
+
+This website shows my workflow for analyzing 16S rRNA sequencing data using the
+DADA2 pipeline with further downstream analysis via Phyloseq, PICRUSt2, and 
+ALDEx2.  The site will be continually updated as my analysis and skills
+progress further.

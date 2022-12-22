@@ -1,0 +1,329 @@
+---
+title: "Running the DADA2 Pipeline with 16S rRNA Sequencing Data"
+author: "David Ramotowski"
+date: "12/22/2022"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+
+Remember to replace file names and paths with your own!
+  -Make sure all sample files are in 1 folder and in fastq.gz format
+  -On IDAS, you should place all files into a Zip folder and upload,
+    they will be automatically extracted
+  
+You will need the following R packages:
+-dada2, ShortRead, Biostrings, tidyverse, phyloseq, biomformat, vegan, 
+  ggbeeswarm, DESeq2, ggrepel
+  
+-dada2 installation code:
+  if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+    BiocManager::install("dada2")
+
+-ShortRead installation code:
+  if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+    BiocManager::install("ShortRead")
+
+-Biostrings installation code:
+  if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+    BiocManager::install("Biostrings")
+
+-tidyverse installation code:
+  install.packages("tidyverse")
+  
+-phyloseq installation code:
+  if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+    BiocManager::install("phyloseq")
+
+-vegan installation code:
+  install.packages(vegan)
+
+-ggbeeswarm installation code:
+  install.packages('ggbeeswarm')
+
+-DESeq2 installation code:
+  if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+    BiocManager::install("DESeq2")
+
+-ggrepel installation code:
+  install.packages("ggrepel")
+  
+-biomformat installation code:
+  if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+    BiocManager::install("biomformat")
+ 
+-ALDEx2 installation code:
+  if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+  BiocManager::install("ALDEx2")
+
+-data.table installation code:
+  install.packages("data.table")
+  
+-GUniFrac installation code:
+  install.packages("GUniFrac")
+
+-R.utils installation code:
+  install.packages("R.utils")
+
+-plyr installation code:
+  install.packages("plyr")
+  
+-ggpubr installation code:
+  if(!require(devtools)) install.packages("devtools")                                   
+  devtools::install_github("kassambara/ggpubr")
+  
+  install.packages("ggpubr")
+```{r}
+library(dada2)
+library(ShortRead)
+library(Biostrings)
+library(tidyverse)
+library(phyloseq)
+library(vegan)
+library(data.table)
+library(DESeq2)
+library(ggrepel)
+library(ggbeeswarm)
+library(biomformat)
+library(data.table)
+library(ALDEx2)
+library(GUniFrac)
+library(R.utils)
+library(plyr)
+library(ggpubr)
+#These packages need to be loaded with each new session
+```
+
+
+You will also need to install cutadapt:
+(https://cutadapt.readthedocs.io/en/stable/installation.html)
+
+```{bash}
+python3 -m pip install --user --upgrade cutadapt
+      
+      ~/.local/bin/cutadapt --version
+```
+
+Enter the file path for cutadapt:
+```{r}
+cutadapt <-"/home/djramotowski/.local/bin/cutadapt"
+    #replace my hawkid with yours ex: /home/hawkid/.local/bin/cutadapt
+  system2(cutadapt, args = "--version")
+```
+  
+For taxonomy analysis, download the Silva reference database: 
+  (https://zenodo.org/record/4587955#.YkP5F-rMKUk) 
+  Place in same folder as your samples (or you can specify the file path if it 
+  is in a different location at the trimming step)
+  
+  -Other classifiers ex. Greengenes may be used as well
+    
+
+--Begin Analysis--
+
+First, set your working directory (substitute your HawkID in place of mine):
+```{r}
+ setwd("/home/djramotowski/DJR_Mattes_Lab/R_Script_3-27-22")
+list.files() #Make sure that all fastq.gz files are in one folder
+```
+
+
+Part 1: Removing Primers and Adapters
+
+  Generate paired forward and reverse read files and parse out sample names
+```{r}
+  fnFs <-sort(list.files(pattern="_R1_001.fastq.gz", full.names = TRUE))
+  fnRs <-sort(list.files(pattern="_R2_001.fastq.gz", full.names = TRUE))
+```
+  
+  Record forward and reverse primer sequences
+```{r}
+  FWD<-"GTGCCAGCMGCCGCGGTAA" #Will need to change to your primers
+  REV<-"GGACTACHVGGGTWTCTAAT"
+```
+
+  Verify primer presence and orientation in reads
+```{r}
+  allOrients<-function(primer) {
+    require(Biostrings)
+    dna <- DNAString(primer)
+    orients <- c(Forward=dna, Complement=complement(dna),
+                 Reverse=reverse(dna), RevComp=reverseComplement(dna))
+    return(sapply(orients, toString))
+  }
+  FWD.orients <- allOrients(FWD)
+  REV.orients <- allOrients(REV)
+  FWD.orients
+  REV.orients
+```
+
+  Remove ambiguous bases (Ns) in the sequence reads
+```{r}
+  fnFs.filtN <- file.path("filtN", basename(fnFs))
+  fnRs.filtN <- file.path("filtN", basename(fnRs))
+  filterAndTrim(fnFs, fnFs.filtN, fnRs, fnRs.filtN, maxN = 0,
+                multithread=TRUE) #creates an output directory named FiltN
+```
+  
+  Check sequence quality
+```{r}
+  plotQualityProfile(fnFs[1:2])
+  plotQualityProfile(fnRs[1:2])
+    #adding qualtiy check here because sometimes quality cannot be checked
+    #following primer removal [1:2] checks first two reads.
+```
+
+  Count number of times primers appear in forward and reverse read
+```{r}
+  primerHits <- function(primer, fn) {
+    nhits <- vcountPattern(primer, sread(readFastq(fn)), fixed = FALSE) 
+    return(sum(nhits>0))
+  }
+  rbind(FWD.ForwardReads=sapply(FWD.orients, primerHits, fn=fnFs.filtN[[1]]),
+        FWD.ReverseReads = sapply(FWD.orients, primerHits, fn=fnRs.filtN[[1]]),
+        REV.ForwardReads = sapply(REV.orients, primerHits, fn=fnFs.filtN[[1]]),
+        REV.ReverseReads = sapply(REV.orients, primerHits, fn=fnRs.filtN[[1]]))
+```
+
+  Remove primers using cutadapt
+```{r}
+  path.cut <- file.path("cutadapt")
+  if(!dir.exists(path.cut)) dir.create(path.cut)
+  fnFs.cut <- file.path(path.cut, basename(fnFs))
+  fnRs.cut <- file.path(path.cut, basename(fnRs))
+  FWD.RC <- dada2:::rc(FWD)
+  REV.RC <- dada2:::rc(REV)
+  R1.flags <- paste("-g", FWD, "-a", REV.RC)
+  R2.flags <- paste("-G", REV, "-A", FWD.RC)
+  for(i in seq_along(fnFs)) {
+    system2(cutadapt, args=c(R1.flags, R2.flags, "-n", 2, "-o", fnFs.cut[i],
+                             "-p", fnRs.cut[i], fnFs.filtN[i], fnRs.filtN[i]))
+  }
+```
+
+  Sanity check for presence of primers in first cutadapt-ed sample
+```{r}
+  rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn=fnFs.cut[[1]]),
+        FWD.ReverseReads = sapply(FWD.orients, primerHits, fn=fnRs.cut[[1]]),
+        FWD.ForwardReads = sapply(REV.orients, primerHits, fn=fnFs.cut[[1]]),
+        FWD.ReverseReads = sapply(REV.orients, primerHits, fn=fnRs.cut[[1]]))
+```
+
+
+Part 2: Quality Control: Trim, Filter, Err Model, and Merge Pairs in DADA2
+
+  Inspecting trimmed files (replace file path here)
+```{r}
+  cut_path <- "/home/djramotowski/DJR_Mattes_Lab/R_Script_3-27-22/cutadapt"
+  list.files(cut_path)
+  cutFs <- sort(list.files(cut_path, pattern = "_R1_001.fastq.gz", full.names = 
+                             TRUE))
+  cutRs <- sort(list.files(cut_path, pattern = "_R2_001.fastq.gz", full.names = 
+                             TRUE))
+  get.sample.name <- function(fname) strsplit(basename(fname), "_")[[1]][1]
+  sample.names <- unname(sapply(cutFs, get.sample.name))
+  head(sample.names)
+    #I would plot quality profiles here, but I have not gotten it to work.
+      #plotQualityProfile(cutFs[1:2])
+      #plotQualityProfile(cutRs[1:2])
+```
+  
+  Filter and trim sequences
+```{r}
+  filtFs <- file.path(cut_path, "filtered", basename(cutFs))
+  filtRs <- file.path(cut_path, "filtered", basename(cutRs))
+  out <- filterAndTrim(cutFs, filtFs, cutRs, filtRs, maxN = 0, maxEE = c(2, 2),
+    truncQ = 2, minLen = 50, rm.phix = TRUE, compress = TRUE, 
+    multithread = TRUE) #These parameters can be modified based on read quality
+  head(out)
+  tail(out) #Checks first and last few sequences
+```
+  
+  Error modeling (dont' worry if all sequences aren't the same length)
+```{r}
+  errF <- learnErrors(filtFs, multithread = TRUE)
+  errR <- learnErrors(filtRs, multithread = TRUE)
+  plotErrors(errF, nominalQ = TRUE) #Plots error model
+  plotErrors(errR, nominalQ = TRUE)
+```
+  
+  Dereplicate identical reads
+```{r}
+  derepFs <- derepFastq(filtFs, verbose = TRUE)
+  derepRs <- derepFastq(filtRs, verbose = TRUE)
+  names(derepFs) <- sample.names #Name derep-class objects by sample ID
+  names(derepRs) <- sample.names
+```
+  
+  Sample inference
+```{r}
+  dadaFs <- dada(derepFs, err = errF, multithread = TRUE)
+  dadaRs <- dada(derepRs, err = errR, multithread = TRUE)
+  dadaFs[(1)] #can check any sequence file after quality control
+```
+  
+  Merge forward and reverse reads
+```{r}
+  mergers <- mergePairs(dadaFs, derepFs, dadaRs, derepRs, verbose=TRUE)
+```
+  
+  Construct sequence table
+```{r}
+  seqtab <- makeSequenceTable(mergers)
+  dim(seqtab)
+```
+  
+  Remove chimeras
+```{r}
+  seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", 
+                                      multithread=TRUE, verbose=TRUE)
+  table(nchar(getSequences(seqtab.nochim)))
+    #inspect distribution of sequence lengths
+```
+  
+  Track reads through the pipeline
+```{r}
+  getN <- function(x) sum(getUniques(x))
+  track <- cbind(out, sapply(dadaFs, getN), sapply(dadaRs, getN), 
+                 sapply(mergers, getN), rowSums(seqtab.nochim))
+    #For single samples, rplace sapply() with get()
+  colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", 
+                       "nonchim")
+  rownames(track) <- sample.names
+  head(track)
+```
+
+  Save sequence table
+```{r}
+  saveRDS(seqtab, "seqtab.rds")
+```
+  
+  
+Part 3: Assign Taxonomy
+```{r}
+  taxa <- assignTaxonomy(seqtab.nochim, "silva_nr99_v138.1_train_set.fa.gz", 
+                         multithread=TRUE)
+    #Can change filepath if you don't want to copy silva into the working dir
+```
+  
+  Inspect taxonomic assignments
+```{r}
+  taxa.print <- taxa # Removing sequence row names for ease of visualization
+  rownames(taxa.print) <- NULL
+  head(taxa.print)
+```
+ 
+  You can now analyze the data with packages such as Phyloseq, Vegan, etc.
+  Good Luck!
+ 
