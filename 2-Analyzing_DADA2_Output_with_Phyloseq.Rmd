@@ -1,0 +1,462 @@
+---
+title: "Part 2: Analyzing DADA2 Output With Phyloseq"
+author: "David Ramotowski"
+date: "12/22/2022"
+output: html_document
+---
+
+Part 4: Further Microbiome Analysis Using Phyloseq
+  
+  Upload sample metadata file (optional, good if comparing multiple factors)
+    -Make sure sample names in 1st column match names of the otu table
+```{r}
+  samdf <- data.frame(read.csv('sample_meta.csv', header = TRUE, 
+                               row.names = 1, sep = ","))
+  head(samdf)
+```
+
+  Create Phyloseq object 
+  (remove sample_data command if you are not using a metadata file)  
+```{r}
+  theme_set(theme_bw())
+  ps <- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE), 
+                 tax_table(taxa), sample_data(samdf)) 
+  #creates phyloseq object from DADA2 outputs
+  dna <- Biostrings::DNAStringSet(taxa_names(ps))
+  names(dna) <- taxa_names(ps)
+  ps <- merge_phyloseq(ps, dna)
+  taxa_names(ps) <- paste0("ASV", seq(ntaxa(ps)))
+  ps
+```
+
+    Create ASV and Taxonomy Tables
+```{r}
+write.table(as.data.table(otu_table(ps), keep.rownames = T), file = 
+              "expr.otu_table.tsv", 
+        sep = "\t", quote = F, row.names = F, col.names = T)
+write.table(as.data.table(tax_table(ps), keep.rownames = T), file = 
+              "expr.tax_table.tsv", 
+        sep = "\t", quote = F, row.names = F, col.names = T)
+```
+
+  Create raw abundance tables 
+    Remove Sample_ID in group_by() it doesn't exist, then replace 
+    pivot_wider(names_from = Sample_ID, values_from = Abundance) with 
+    spread(Sample_ID, Abundance), you can also change Sample_ID to other 
+    variables from metadata.
+```{r}
+ifelse(!dir.exists("raw_abundance_tables"), dir.create("raw_abundance_tables"), 
+       FALSE)
+write.table(ps %>% psmelt() %>% 
+        arrange(OTU) %>% dplyr::rename(ASV = OTU) %>% 
+        dplyr::select(ASV, Kingdom, Phylum, Class, Order, Family, Genus, 
+               Sample_ID, Abundance) %>%
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = "raw_abundance_tables/expr.abundance.all.tsv", 
+    sep = "\t", quote = F, row.names = F, col.names = T)
+write.table(ps %>% tax_glom(taxrank = "Phylum") %>% psmelt() %>%   
+        dplyr::select(Phylum, Sample_ID, Abundance) %>% dplyr::group_by(Phylum, Sample_ID) 
+        %>% dplyr::summarise(Abundance = sum(Abundance)) %>% 
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = "raw_abundance_tables/expr.abundance.abphy.tsv", 
+    sep = "\t", quote = F, row.names = F, col.names = T)
+write.table(ps %>% tax_glom(taxrank = "Class") %>% psmelt() %>%   
+        dplyr::select(Class, Sample_ID, Abundance) %>% dplyr::group_by(Class, Sample_ID) 
+        %>% dplyr::summarise(Abundance = sum(Abundance)) %>% 
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = "raw_abundance_tables/expr.abundance.abcls.tsv", 
+    sep = "\t", quote = F, row.names = F, col.names = T)
+write.table(ps %>% tax_glom(taxrank = "Family") %>% psmelt() %>%   
+        dplyr::select(Family, Sample_ID, Abundance) %>% dplyr::group_by(Family, Sample_ID) 
+        %>% dplyr::summarise(Abundance = sum(Abundance)) %>% 
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = "raw_abundance_tables/expr.abundance.abfam.tsv", 
+    sep = "\t", quote = F, row.names = F, col.names = T)
+write.table(ps %>% tax_glom(taxrank = "Genus") %>% psmelt() %>%   
+        dplyr::select(Genus, Sample_ID, Abundance) %>% dplyr::group_by(Genus, Sample_ID) 
+        %>% dplyr::summarise(Abundance = sum(Abundance)) %>% 
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = "raw_abundance_tables/expr.abundance.abgen.tsv", 
+    sep = "\t", quote = F, row.names = F, col.names = T)
+```
+
+  Create relative abundance tables 
+    Remove Sample_ID in group_by() it doesn't exist, then replace 
+    pivot_wider(names_from = Sample_ID, values_from = Abundance) with 
+    spread(Sample_ID, Abundance), you can also change Sample_ID to other 
+    variables from metadata.
+```{r}
+ifelse(!dir.exists("relative_abundance_tables"), 
+       dir.create("relative_abundance_tables"), FALSE)
+
+write.table(ps %>% transform_sample_counts(function(x) {x/sum(x)} ) %>% 
+              psmelt() %>% 
+        arrange(OTU) %>% dplyr::rename(ASV = OTU) %>% 
+        dplyr::select(ASV, Kingdom, Phylum, Class, Order, Family, Genus, 
+               Sample_ID, Abundance) %>%
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = "relative_abundance_tables/expr.relative_abundance.all.tsv", 
+    sep = "\t", quote = F, row.names = F, col.names = T)
+write.table(ps %>% tax_glom(taxrank = "Phylum") %>% 
+        transform_sample_counts(function(x) {x/sum(x)} ) %>% psmelt() %>%   
+        dplyr::select(Phylum, Sample_ID, Abundance) %>% dplyr::group_by(Phylum, Sample_ID) 
+        %>% dplyr::summarise(Abundance = sum(Abundance)) %>% 
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = "relative_abundance_tables/expr.relative_abundance.abphy.tsv", 
+    sep = "\t", quote = F, row.names = F, col.names = T)
+write.table(ps %>% tax_glom(taxrank = "Class") %>% 
+        transform_sample_counts(function(x) {x/sum(x)} ) %>% psmelt() %>%   
+        dplyr::select(Class, Sample_ID, Abundance) %>% dplyr::group_by(Class, Sample_ID) 
+        %>% dplyr::summarise(Abundance = sum(Abundance)) %>% 
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = "relative_abundance_tables/expr.relative_abundance.abcls.tsv", 
+    sep = "\t", quote = F, row.names = F, col.names = T)
+write.table(ps %>% tax_glom(taxrank = "Family") %>% 
+        transform_sample_counts(function(x) {x/sum(x)} ) %>% psmelt() %>%   
+        dplyr::select(Family, Sample_ID, Abundance) %>% dplyr::group_by(Family, Sample_ID) 
+        %>% dplyr::summarise(Abundance = sum(Abundance)) %>% 
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = "relative_abundance_tables/expr.relative_abundance.abfam.tsv", 
+    sep = "\t", quote = F, row.names = F, col.names = T)
+write.table(ps %>% tax_glom(taxrank = "Genus") %>% 
+        transform_sample_counts(function(x) {x/sum(x)} ) %>% psmelt() %>%   
+        dplyr::select(Genus, Sample_ID, Abundance) %>% dplyr::group_by(Genus, Sample_ID) 
+        %>% dplyr::summarise(Abundance = sum(Abundance)) %>% 
+        pivot_wider(names_from = Sample_ID, values_from = Abundance), 
+    file = "relative_abundance_tables/expr.relative_abundance.abgen.tsv", 
+    sep = "\t", quote = F, row.names = F, col.names = T)
+```
+
+  Plot abundance step 1 
+    Taxonomic Filtering (only used for bar plots):
+```{r}
+#Show available ranks in the dataset
+rank_names(ps)
+```
+
+```{r}
+#Create table with number of phylum features
+table(tax_table(ps)[, "Phylum"], exclude = NULL)
+```
+
+  In this case, I filtered out phyla with only one feature as well as any NA
+  phyla (likely artifacts), this can/will change based on your samples
+```{r}
+ps0 <- subset_taxa(ps, !is.na(Phylum) & !Phylum %in% 
+                     c("", "Edwardsbacteria", "Hydrothermae"))
+```
+  
+  Prevalence filtering:
+```{r}
+# Compute prevalence of each feature, store as data frame
+prevdf <- apply(X = otu_table(ps),
+               MARGIN = ifelse(taxa_are_rows(ps), yes = 1, no = 2),
+               FUN = function(x){sum(x > 0)})
+
+# Add taxonomy and total read counts to this data frame
+prevdf <- data.frame(Prevalence = prevdf,
+                    TotalAbundance = taxa_sums(ps),
+                    tax_table(ps))
+
+#Compute average (column 1) total prevalence (column 2) of each feature
+plyr::ddply(prevdf, "Phylum", function(df1){cbind(mean(df1$Prevalence),
+                                                  sum(df1$Prevalence))})
+```
+
+  Only run this chunk if there are phyla in the previous table with really low
+  prevalence
+```{r}
+# Define phyla to filter if needed, won't filter at this step in my case
+filterPhyla <- c("")
+
+# Filter entries with unidentified Phylum.  Only run this code if you filtered 
+ps0 <- subset_taxa(ps0, !Phylum %in% filterPhyla)
+ps
+```
+
+  Subset and plot remaining ASV's with line showing 5% abundance threshold
+  (if it's hard to see the plot, copy and run the code in the console below,
+  click on the plots tab on the bottom right of RStudio and zoom)
+```{r}
+# Subset to the remaining phyla
+prevdf1 <- subset(prevdf, Phylum %in% get_taxa_unique(ps0, "Phylum"))
+
+# Plot
+ggplot(prevdf1, aes(TotalAbundance, Prevalence / nsamples(ps0),color=Phylum)) +
+  # Include a guess for parameter
+  geom_point(size = 2, alpha = 0.7) +
+  geom_hline(yintercept = 0.05, alpha = 0.5, linetype = 2) +
+  scale_x_log10() +  xlab("Total Abundance") + ylab("Prevalence [Frac. Samples]") +
+  facet_wrap(~Phylum) + theme(legend.position="none")
+```
+
+  Filter taxa (can change the abundance and prevalence threshold for more or 
+  less taxa)
+```{r}
+# Define prevalence threshold as 50% of total samples
+prevalenceThreshold = 0.5 * nsamples(ps0)
+abundanceThreshold = 10
+
+# Execute prevalence filter, using `prune_taxa()` function
+keepTaxa <- rownames(prevdf1)[(prevdf1$Prevalence >= prevalenceThreshold 
+                               & prevdf1$TotalAbundance >= abundanceThreshold)]
+ps1 <- prune_taxa(keepTaxa, ps0)
+```
+  
+  Save results to file
+```{r}
+saveRDS(ps1, "ps1.rds")
+```
+  
+  Plot abundance step 2:
+    calculate relative abundance
+```{r}
+  # Transform to proportions (relative abundances)
+ps.rp = transform_sample_counts(ps1, function(OTU) OTU/sum(OTU)) 
+
+# Top N taxa 
+N = 50 #(can change to any number of taxa)
+topN = names(sort(taxa_sums(ps1), decreasing=TRUE))[1:N]
+ps.topN = transform_sample_counts(ps1, function(OTU) OTU/sum(OTU))
+ps.topN = prune_taxa(topN, ps.topN) 
+
+ps.topN
+```
+ 
+ Group by phylum, place low abundance samples (<1% abundance) into "other"
+```{r}
+glom <- tax_glom(ps.rp, taxrank = "Phylum") %>% psmelt()
+glom$Phylum <- as.character(glom$Phylum)
+medians <- ddply(glom, ~Phylum, function(x) c(median=median(x$Abundance)))
+Other <- medians[medians$median <= 0.01,]$Phylum
+glom[glom$Phylum %in% Other,]$Phylum <- 'Other'
+glom <- glom %>% 
+    rowwise() %>% 
+    filter(Abundance != 0) %>% 
+    group_by(Sample, Location, Sample_ID, Phylum) %>% 
+    dplyr::summarise(Abundance = sum(Abundance))
+```
+ 
+ Plot phylum barplot
+```{r}
+ptaxa_trimmed = ggplot(glom, aes(x=Sample_ID, y=Abundance, fill = Phylum,)) + 
+  geom_col(size = 0.05, color = "black") + facet_wrap(~Location, scales = "free_x", nrow = 1) + 
+  guides(fill = guide_legend(ncol = 1)) + scale_y_continuous(breaks = seq(0, 1, 0.1)) + 
+    theme(legend.title = element_text(size = 8), legend.text = element_text(size = 5), 
+          axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5, hjust = 1), 
+          axis.text.y = element_text(size = 12)) + xlab("Sample") + ylab("Relative abundance") +
+          ggtitle("Phylum Relative Abundance") + scale_fill_brewer(palette = "Spectral")
+ptaxa_trimmed
+```
+I will work on genus plots later...
+
+  Plot phylum relative abundance (older code)
+```{r}
+# All taxa
+ifelse(!dir.exists("bar_plots"), dir.create("bar_plots"), 
+       FALSE)
+
+ptaxa1 = plot_bar(ps.rp %>% tax_glom(taxrank = "Phylum"), x = "Sample_ID", fill = "Phylum", title = paste(ntaxa(ps.rp), "Taxa (Phylum)")) + 
+    geom_bar(stat = "identity", size = 0.05, color = "black") + 
+    facet_wrap(~Location, scales = "free_x", nrow = 1) + guides(fill = guide_legend(ncol = 2)) + 
+    scale_y_continuous(breaks = seq(0, 1, 0.1)) + 
+    theme(legend.title = element_text(size = 8), legend.text = element_text(size = 5), 
+          axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5, hjust = 1), 
+          axis.text.y = element_text(size = 12)) + xlab("Sample") + ylab("Relative abundance")
+
+# Top 200 taxa
+ptaxa2 = plot_bar(ps.topN %>% tax_glom(taxrank = "Phylum"), x = "Sample_ID", fill = "Phylum", title = paste(ntaxa(ps.topN), "Taxa (Phylum)")) + 
+    geom_bar(stat = "identity", size = 0.05, color = "black") + 
+    facet_wrap(~Location, scales = "free_x", nrow = 1) + guides(fill = guide_legend(ncol = 2)) + 
+    scale_y_continuous(breaks = seq(0, 1, 0.1)) + 
+    theme(legend.title = element_text(size = 8), legend.text = element_text(size = 5), 
+          axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5, hjust = 1), 
+          axis.text.y = element_text(size = 12)) + xlab("Sample") + ylab("Relative abundance")
+
+png("bar_plots/plot_bar_phylum.png", width = 10, height = 10, units = "in", res = 300)
+gridExtra::grid.arrange(ptaxa1, ptaxa2, nrow = 2)
+invisible(dev.off())
+```
+
+  Plot class relative abundance
+```{r}
+ifelse(!dir.exists("bar_plots"), dir.create("bar_plots"), 
+       FALSE)
+#All taxa
+ptaxa3 = plot_bar(ps.rp %>% tax_glom(taxrank = "Class"), x = "Sample_ID", fill = "Class", 
+          title = paste(ntaxa(ps.rp), "Taxa (Class)")) +
+        geom_bar(stat = "identity", size = 0.05, color = "black") +
+        facet_wrap(~Location, scales = "free_x", nrow = 1) + guides(fill = guide_legend(ncol = 5)) +
+        scale_y_continuous(breaks = seq(0, 1, 0.1)) +
+        theme(legend.title = element_text(size = 8), legend.text = element_text(size = 5),
+              axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5, hjust = 1),
+              axis.text.y = element_text(size = 12)) + xlab("Sample") + ylab("Relative abundance")
+#Top 200 taxa
+ptaxa4 = plot_bar(ps.topN %>% tax_glom(taxrank = "Class"), x = "Sample_ID", fill = "Class", 
+          title = paste("Top",N, "Taxa (Class)")) +
+        geom_bar(stat = "identity", size = 0.1, color = "black") +
+        facet_wrap(~Location, scales = "free_x", nrow = 1) + guides(fill = guide_legend(ncol = 5)) +
+        scale_y_continuous(breaks = seq(0, 1, 0.1)) +
+        theme(legend.title = element_text(size = 8), legend.text = element_text(size = 5),
+              axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5, hjust = 1),
+              axis.text.y = element_text(size = 12)) + xlab("Sample") + ylab("Relative Abundance")
+
+png("bar_plots/plot_bar_class.png", width = 10, height = 8, units = "in", res = 300)
+gridExtra::grid.arrange(ptaxa3, ptaxa4, nrow = 2)
+invisible(dev.off())
+```
+  
+  
+  Plot family relative abundance
+```{r}
+ifelse(!dir.exists("bar_plots"), dir.create("bar_plots"), 
+       FALSE)
+#Top 200 taxa
+ptaxa5 = plot_bar(ps.topN %>% tax_glom(taxrank = "Family"), x = "Sample_ID", fill = "Family", 
+          title = paste("Top",N, "Taxa (Family)")) +
+        geom_bar(stat = "identity", size = 0.1, color = "black") +
+        facet_wrap(~Location, scales = "free_x", nrow = 1) + guides(fill = guide_legend(ncol = 5)) +
+        scale_y_continuous(breaks = seq(0, 1, 0.1)) +
+        theme(legend.title = element_text(size = 8), legend.text = element_text(size = 5),
+              axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5, hjust = 1),
+              axis.text.y = element_text(size = 12)) + xlab("Sample") + ylab("Relative Abundance")
+
+png("bar_plots/plot_bar_family.png", width = 10, height = 8, units = "in", res = 300)
+gridExtra::grid.arrange(ptaxa5)
+invisible(dev.off())
+```
+ 
+  Plot genus relative abundance
+```{r}
+ifelse(!dir.exists("bar_plots"), dir.create("bar_plots"), 
+       FALSE)
+#Top 200 taxa
+ptaxa6 = plot_bar(ps.topN %>% tax_glom(taxrank = "Genus"), x = "Sample_ID", fill = "Genus", 
+          title = paste("Top",N, "Taxa (Genus)")) +
+        geom_bar(stat = "identity", size = 0.1, color = "black") +
+        facet_wrap(~Location, scales = "free_x", nrow = 1) + guides(fill = guide_legend(ncol = 5)) +
+        scale_y_continuous(breaks = seq(0, 1, 0.1)) +
+        theme(legend.title = element_text(size = 8), legend.text = element_text(size = 5),
+              axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5, hjust = 1),
+              axis.text.y = element_text(size = 12)) + xlab("Sample") + ylab("Relative Abundance")
+
+png("bar_plots/plot_bar_genus.png", width = 10, height = 8, units = "in", res = 300)
+gridExtra::grid.arrange(ptaxa6)
+invisible(dev.off())
+```
+
+  Alpha diversity (Shannon and Simpson)
+    Will use the un-trimmed samples (ps) for these plots to ensure 
+    accurate species richness estimates, you can modify the x and color values 
+    based on your experiment
+```{r}
+# Select alpha-diversity measures
+divIdx = c("Observed", "Chao1", "Shannon", "Simpson")
+
+ifelse(!dir.exists("diversity_plots"), dir.create("diversity_plots"), 
+       FALSE)
+
+png("diversity_plots/plot_richness.png", width = 6, height = 5, units = "in", res = 300)
+plot_richness(ps, x = "Sample_ID", measures = divIdx, color = "Location", nrow = 1) + 
+    geom_point(size = 0.8) + theme_bw() + 
+    theme(legend.position = "none", 
+          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) + 
+    labs(x = "Sample", y = "Alpha Diversity Measure")
+invisible(dev.off())
+```
+
+  Alpha diversity with statistical analysis
+```{r}
+ifelse(!dir.exists("diversity_plots"), dir.create("diversity_plots"), 
+       FALSE)
+
+png("diversity_plots/plot_richness.png", width = 5, height = 5, units = "in", res = 300)
+
+a_my_comparisons <- list( c("AVL", "NBH"))
+symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns"))
+
+plot_richness(ps, x="Location", measures=c("Shannon", "Simpson", "Chao1"), color = "Location")+
+  geom_boxplot(alpha=0.6, width = 0.5)+ 
+  theme(legend.position= "none") + theme(axis.text.x=element_text(angle=45,hjust=1,vjust=1,size=12))+
+  stat_compare_means(method = "wilcox.test", comparisons = a_my_comparisons, label = "p.signif", symnum.args = symnum.args) +
+  theme_bw() + labs(x = "", y = "Alpha Diversity")
+```
+  
+  Currently working on Beta Diversity...
+
+
+  Create ASV and Taxonomy Tables with filtered taxa
+```{r}
+write.table(as.data.table(otu_table(ps1), keep.rownames = T), file = 
+              "expr.otu_table_filtered.tsv", 
+        sep = "\t", quote = F, row.names = F, col.names = T)
+write.table(as.data.table(tax_table(ps1), keep.rownames = T), file = 
+              "expr.tax_table_filtered.tsv", 
+        sep = "\t", quote = F, row.names = F, col.names = T)
+```
+
+  Create raw abundance tables from filtered taxa 
+  (Remove Sample_ID if it doesn't exist, 
+  can also change to other variables from metadata)
+```{r}
+ifelse(!dir.exists("raw_abundance_tables_filtered"), 
+       dir.create("raw_abundance_tables_filtered"), FALSE)
+write.table(ps1 %>% psmelt() %>% arrange(OTU) %>% rename(ASV = OTU) %>% 
+        select(ASV, Kingdom, Phylum, Class, Order, Family, Genus, Sample_ID, 
+               Abundance) %>% 
+        spread(Sample_ID, Abundance),
+        file = "raw_abundance_tables/expr.abundance.all.tsv", sep = "\t", 
+        quote = F, row.names = F, col.names = T)
+write.table(ps1 %>% tax_glom(taxrank = "Phylum") %>% psmelt() %>% 
+        select(Phylum, Sample_ID, Abundance) %>% spread(Sample_ID, Abundance),
+        file = "raw_abundance_tables/expr.abundance.abphy.tsv", sep = "\t", 
+        quote = F, row.names = F, col.names = T)
+write.table(ps1 %>% tax_glom(taxrank = "Class") %>% psmelt() %>% 
+        select(Class, Sample_ID, Abundance) %>% spread(Sample_ID, Abundance),
+        file = "raw_abundance_tables/expr.abundance.abcls.tsv", sep = "\t", 
+        quote = F, row.names = F, col.names = T)
+write.table(ps1 %>% tax_glom(taxrank = "Family") %>% psmelt() %>%
+        select(Family, Sample_ID, Abundance) %>% spread(Sample_ID, Abundance),
+        file = "raw_abundance_tables/expr.abundance.abfam.tsv", sep = "\t", 
+        quote = F, row.names = F, col.names = T)
+write.table(ps1 %>% tax_glom(taxrank = "Genus") %>% psmelt() %>%
+        select(Genus, Sample_ID, Abundance) %>% spread(Sample_ID, Abundance),
+        file = "raw_abundance_tables/expr.abundance.abgen.tsv", sep = "\t", 
+        quote = F, row.names = F, col.names = T)
+```
+
+  Create relative abundance tables (Remove Sample_ID if it doesn't exist, 
+    can also change to other variables from metadata)
+```{r}
+ifelse(!dir.exists("relative_abundance_tables_filtered"), 
+       dir.create("relative_abundance_tables_filtered"), FALSE)
+
+write.table(ps1 %>% transform_sample_counts(function(x) {x/sum(x)} ) %>% 
+              psmelt() %>% 
+        arrange(OTU) %>% rename(ASV = OTU) %>% 
+        select(ASV, Kingdom, Phylum, Class, Order, Family, Genus, Species, 
+               Sample_ID, Abundance) %>%
+        spread(Sample_ID, Abundance), 
+    file = "relative_abundance_tables/expr.relative_abundance.all.tsv", 
+    sep = "\t", quote = F, row.names = F, col.names = T)
+write.table(ps1 %>% tax_glom(taxrank = "Phylum") %>% 
+        transform_sample_counts(function(x) {x/sum(x)} ) %>% psmelt() %>%
+        select(Phylum, Sample_ID, Abundance) %>% spread(Sample_ID, Abundance), 
+    file = "relative_abundance_tables/expr.relative_abundance.abphy.tsv", 
+    sep = "\t", quote = F, row.names = F, col.names = T)
+write.table(ps1 %>% tax_glom(taxrank = "Class") %>%
+        transform_sample_counts(function(x) {x/sum(x)} ) %>% psmelt() %>% 
+        select(Class, Sample_ID, Abundance) %>% spread(Sample_ID, Abundance), 
+    file = "relative_abundance_tables/expr.relative_abundance.abcls.tsv", 
+    sep = "\t", quote = F, row.names = F, col.names = T)
+write.table(ps1 %>% tax_glom(taxrank = "Family") %>%
+        transform_sample_counts(function(x) {x/sum(x)} ) %>% psmelt() %>% 
+        select(Family, Sample_ID, Abundance) %>% spread(Sample_ID, Abundance), 
+    file = "relative_abundance_tables/expr.relative_abundance.abfam.tsv", 
+    sep = "\t", quote = F, row.names = F, col.names = T)
+write.table(ps1 %>% tax_glom(taxrank = "Genus") %>% 
+        transform_sample_counts(function(x) {x/sum(x)} ) %>% psmelt() %>% 
+        select(Genus, Sample_ID, Abundance) %>% spread(Sample_ID, Abundance), 
+    file = "relative_abundance_tables/expr.relative_abundance.abgen.tsv", 
+    sep = "\t", quote = F, row.names = F, col.names = T)
+```
