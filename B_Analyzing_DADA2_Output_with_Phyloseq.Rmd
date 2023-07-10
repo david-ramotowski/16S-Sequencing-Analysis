@@ -58,25 +58,22 @@ write.table(ps %>% psmelt() %>%
         pivot_wider(names_from = Sample_ID, values_from = Abundance), 
     file = "raw_abundance_tables/expr.abundance.all.tsv", 
     sep = "\t", quote = F, row.names = F, col.names = T)
-write.table(ps %>% tax_glom(taxrank = "Phylum") %>% psmelt() %>%   
-        dplyr::select(Phylum, Sample_ID, Abundance) %>% dplyr::group_by(Phylum, Sample_ID) 
+write.table(ps %>% tax_glom(taxrank = "Phylum", bad_empty = c("", " ", "\t")) %>% psmelt() %>% dplyr::select(Phylum, Sample_ID, Abundance) %>% dplyr::group_by(Phylum, Sample_ID) 
         %>% dplyr::summarise(Abundance = sum(Abundance)) %>% 
         pivot_wider(names_from = Sample_ID, values_from = Abundance), 
     file = "raw_abundance_tables/expr.abundance.abphy.tsv", 
     sep = "\t", quote = F, row.names = F, col.names = T)
-write.table(ps %>% tax_glom(taxrank = "Class") %>% psmelt() %>%   
-        dplyr::select(Class, Sample_ID, Abundance) %>% dplyr::group_by(Class, Sample_ID) 
+write.table(ps %>% tax_glom(taxrank = "Class", bad_empty = c("", " ", "\t")) %>% psmelt() %>%    dplyr::select(Class, Sample_ID, Abundance) %>% dplyr::group_by(Class, Sample_ID) 
         %>% dplyr::summarise(Abundance = sum(Abundance)) %>% 
         pivot_wider(names_from = Sample_ID, values_from = Abundance), 
     file = "raw_abundance_tables/expr.abundance.abcls.tsv", 
     sep = "\t", quote = F, row.names = F, col.names = T)
-write.table(ps %>% tax_glom(taxrank = "Family") %>% psmelt() %>%   
-        dplyr::select(Family, Sample_ID, Abundance) %>% dplyr::group_by(Family, Sample_ID) 
+write.table(ps %>% tax_glom(taxrank = "Family" , bad_empty = c("", " ", "\t")) %>% psmelt() %>%   dplyr::select(Family, Sample_ID, Abundance) %>% dplyr::group_by(Family, Sample_ID) 
         %>% dplyr::summarise(Abundance = sum(Abundance)) %>% 
         pivot_wider(names_from = Sample_ID, values_from = Abundance), 
     file = "raw_abundance_tables/expr.abundance.abfam.tsv", 
     sep = "\t", quote = F, row.names = F, col.names = T)
-write.table(ps %>% tax_glom(taxrank = "Genus") %>% psmelt() %>%   
+write.table(ps %>% tax_glom(taxrank = "Genus", bad_empty = c("", " ", "\t")) %>% psmelt() %>%
         dplyr::select(Genus, Sample_ID, Abundance) %>% dplyr::group_by(Genus, Sample_ID) 
         %>% dplyr::summarise(Abundance = sum(Abundance)) %>% 
         pivot_wider(names_from = Sample_ID, values_from = Abundance), 
@@ -101,28 +98,28 @@ write.table(ps %>% transform_sample_counts(function(x) {x/sum(x)} ) %>%
         pivot_wider(names_from = Sample_ID, values_from = Abundance), 
     file = "relative_abundance_tables/expr.relative_abundance.all.tsv", 
     sep = "\t", quote = F, row.names = F, col.names = T)
-write.table(ps %>% tax_glom(taxrank = "Phylum") %>% 
+write.table(ps %>% tax_glom(taxrank = "Phylum", bad_empty = c("", " ", "\t")) %>% 
         transform_sample_counts(function(x) {x/sum(x)} ) %>% psmelt() %>%   
         dplyr::select(Phylum, Sample_ID, Abundance) %>% dplyr::group_by(Phylum, Sample_ID) 
         %>% dplyr::summarise(Abundance = sum(Abundance)) %>% 
         pivot_wider(names_from = Sample_ID, values_from = Abundance), 
     file = "relative_abundance_tables/expr.relative_abundance.abphy.tsv", 
     sep = "\t", quote = F, row.names = F, col.names = T)
-write.table(ps %>% tax_glom(taxrank = "Class") %>% 
+write.table(ps %>% tax_glom(taxrank = "Class", bad_empty = c("", " ", "\t")) %>% 
         transform_sample_counts(function(x) {x/sum(x)} ) %>% psmelt() %>%   
         dplyr::select(Class, Sample_ID, Abundance) %>% dplyr::group_by(Class, Sample_ID) 
         %>% dplyr::summarise(Abundance = sum(Abundance)) %>% 
         pivot_wider(names_from = Sample_ID, values_from = Abundance), 
     file = "relative_abundance_tables/expr.relative_abundance.abcls.tsv", 
     sep = "\t", quote = F, row.names = F, col.names = T)
-write.table(ps %>% tax_glom(taxrank = "Family") %>% 
+write.table(ps %>% tax_glom(taxrank = "Family", bad_empty = c("", " ", "\t")) %>% 
         transform_sample_counts(function(x) {x/sum(x)} ) %>% psmelt() %>%   
         dplyr::select(Family, Sample_ID, Abundance) %>% dplyr::group_by(Family, Sample_ID) 
         %>% dplyr::summarise(Abundance = sum(Abundance)) %>% 
         pivot_wider(names_from = Sample_ID, values_from = Abundance), 
     file = "relative_abundance_tables/expr.relative_abundance.abfam.tsv", 
     sep = "\t", quote = F, row.names = F, col.names = T)
-write.table(ps %>% tax_glom(taxrank = "Genus") %>% 
+write.table(ps %>% tax_glom(taxrank = "Genus", bad_empty = c("", " ", "\t")) %>% 
         transform_sample_counts(function(x) {x/sum(x)} ) %>% psmelt() %>%   
         dplyr::select(Genus, Sample_ID, Abundance) %>% dplyr::group_by(Genus, Sample_ID) 
         %>% dplyr::summarise(Abundance = sum(Abundance)) %>% 
