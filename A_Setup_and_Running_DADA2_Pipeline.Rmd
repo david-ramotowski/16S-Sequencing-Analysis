@@ -132,10 +132,11 @@ For taxonomy analysis, download the Silva reference database:
 
 --Begin Analysis--
 
-First, set your working directory (substitute your HawkID in place of mine):
+First, set your working directory (substitute your HawkID in place of mine
+and remember to write the correct file path):
 ```{r}
  setwd("/home/djramotowski/DJR_Mattes_Lab/R_Script_3-27-22")
-list.files() #Make sure that all fastq.gz files are in one folder
+list.files() #Make sure that all fastq.gz files are listed here
 ```
 
 
@@ -223,7 +224,7 @@ Part 1: Removing Primers and Adapters
 
 Part 2: Quality Control: Trim, Filter, Err Model, and Merge Pairs in DADA2
 
-  Inspecting trimmed files (replace file path here)
+  Inspecting trimmed files (replace file path here or your files will be empty)
 ```{r}
   cut_path <- "/home/djramotowski/DJR_Mattes_Lab/R_Script_3-27-22/cutadapt"
   list.files(cut_path)
